@@ -1,7 +1,7 @@
 from .settings import BASE_DIR
 from os import path
 
-with open(path.abspath("./SdelayDelo/secret_key.txt", "r"), encoding="utf-8") as f:
+with open(path.abspath("./SdelayDelo/secret_key.txt"), "r", encoding="utf-8") as f:
     SECRET_KEY = f.read().strip()
 
 ALLOWED_HOSTS = []
