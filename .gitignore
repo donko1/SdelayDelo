@@ -1,0 +1,3 @@
+venv/
+local_settings.py
+secret_key.txt
