@@ -1,3 +1,6 @@
 venv/
 local_settings.py
 secret_key.txt
+__pycache__/
+.idea/
+.vscode/
