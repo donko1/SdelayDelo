@@ -1,7 +1,22 @@
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import is_naive, make_aware
+
 from .models import Note, Tag
+from .serializers import TagSerializer, NoteSerializer
+
+
+def aware_datetime(dt):
+    """
+    Ensure a datetime object is timezone-aware.
+    """
+    parsed = parse_datetime(dt)
+    if parsed and is_naive(parsed):
+        return make_aware(parsed)
+    return parsed
+
 
 User = get_user_model()
 
@@ -148,3 +163,139 @@ class NoteModelTest(TestCase):
         self.assertIn(note2, personal_notes)
         self.assertNotIn(note1, personal_notes)
         self.assertNotIn(note2, work_notes)
+
+
+class TagSerializerTestCase(TestCase):
+    """
+    Test suite for the TagSerializer.
+    """
+
+    def setUp(self):
+        """
+        Create a user and a sample tag for testing.
+        """
+        self.user = User.objects.create_user(username="testuser", password="password")
+        self.tag = Tag.objects.create(
+            title="Test Tag", user=self.user, colour="#FF5733", icon="icon.png"
+        )
+
+    def test_serialization(self):
+        """
+        Test that TagSerializer correctly serializes a Tag instance.
+        """
+        serializer = TagSerializer(instance=self.tag)
+        expected_data = {
+            "id": self.tag.id,
+            "title": "Test Tag",
+            "user": self.user.id,
+            "colour": "#FF5733",
+            "icon": "icon.png",
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_deserialization(self):
+        """
+        Test that TagSerializer correctly deserializes data into a Tag instance.
+        """
+        data = {
+            "title": "New Tag",
+            "user": self.user.id,
+            "colour": "#00FF00",
+            "icon": "new_icon.png",
+        }
+        serializer = TagSerializer(data=data)
+        self.assertTrue(serializer.is_valid())
+        tag = serializer.save()
+        self.assertEqual(tag.title, "New Tag")
+        self.assertEqual(tag.user, self.user)
+        self.assertEqual(tag.colour, "#00FF00")
+        self.assertEqual(tag.icon, "new_icon.png")
+
+
+class NoteSerializerTestCase(TestCase):
+    """
+    Test suite for the NoteSerializer.
+    """
+
+    def setUp(self):
+        """
+        Create a user, a tag, and a note for testing.
+        """
+        self.user = User.objects.create_user(username="testuser", password="password")
+        self.tag = Tag.objects.create(
+            title="Sample Tag", user=self.user, colour="#FF5733"
+        )
+        self.note = Note.objects.create(
+            user=self.user, title="Sample Note", description="Sample description"
+        )
+        self.note.tags.add(self.tag)
+
+    def test_serialization(self):
+        """
+        Test that NoteSerializer correctly serializes a Note instance with tags.
+        """
+        serializer = NoteSerializer(instance=self.note)
+        expected_data = {
+            "id": self.note.id,
+            "user": self.user.id,
+            "title": "Sample Note",
+            "description": "Sample description",
+            "date_create": self.note.date_create.isoformat(),
+            "date_changed": self.note.date_changed.isoformat(),
+            "tags": [
+                {
+                    "id": self.tag.id,
+                    "title": "Sample Tag",
+                    "user": self.user.id,
+                    "colour": "#FF5733",
+                    "icon": None,
+                }
+            ],
+        }
+
+        # Compare individual fields to handle timezone issues
+        for field in ["id", "user", "title", "description", "tags"]:
+            self.assertEqual(serializer.data[field], expected_data[field])
+
+        # Compare datetime fields with timezone handling
+        self.assertEqual(
+            aware_datetime(serializer.data["date_create"]),
+            aware_datetime(expected_data["date_create"]),
+        )
+        self.assertEqual(
+            aware_datetime(serializer.data["date_changed"]),
+            aware_datetime(expected_data["date_changed"]),
+        )
+
+    def test_deserialization(self):
+        """
+        Test that NoteSerializer correctly deserializes data into a Note instance.
+        """
+        data = {
+            "user": self.user.id,
+            "title": "New Note",
+            "description": "New note description",
+        }
+        serializer = NoteSerializer(data=data)
+        self.assertTrue(serializer.is_valid())
+        note = serializer.save()
+        self.assertEqual(note.title, "New Note")
+        self.assertEqual(note.description, "New note description")
+        self.assertEqual(note.user, self.user)
+
+    def test_add_tags_to_note(self):
+        """
+        Test that tags can be associated with a Note instance during deserialization.
+        """
+        data = {
+            "user": self.user.id,
+            "title": "Note with Tags",
+            "description": "This note has tags.",
+            "tags": [self.tag.id],
+        }
+        serializer = NoteSerializer(data=data)
+        self.assertTrue(serializer.is_valid())
+        note = serializer.save()
+        note.tags.set([self.tag])  # Explicitly associate tags
+        self.assertEqual(note.tags.count(), 1)
+        self.assertEqual(note.tags.first(), self.tag)
