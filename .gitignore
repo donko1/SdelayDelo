@@ -4,3 +4,5 @@ secret_key.txt
 __pycache__/
 .idea/
 .vscode/
+*.sqlite3
+migrations
