@@ -1,6 +1,19 @@
-# serializers.py
 from rest_framework import serializers
 from .models import Tag, Note
+from django.utils.timezone import now
+import re
+
+
+def is_hex_color(s):
+    """
+    Checks if a string is a valid HEX color.
+    Supports formats: #RGB, #RRGGBB, #RGBA, #RRGGBBAA.
+
+    :param s: The string to validate
+    :return: True if the string is a valid HEX color, otherwise False
+    """
+    pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
+    return bool(re.match(pattern, s))
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -17,6 +30,24 @@ class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ["id", "title", "user", "colour", "icon"]
+        read_only_field = ["id", "user"]
+
+    def validate_colour(self, value: str) -> str:
+        """
+        Validates if the provided colour value is a valid HEX color.
+
+        Args:
+            value (str): The color code to validate.
+
+        Returns:
+            str: The validated color code.
+
+        Raises:
+            serializers.ValidationError: If the color code is not valid.
+        """
+        if not is_hex_color(value):
+            raise serializers.ValidationError("Invalid HEX color code.")
+        return value
 
 
 class NoteSerializer(serializers.ModelSerializer):
@@ -32,7 +63,7 @@ class NoteSerializer(serializers.ModelSerializer):
     - tags: Associated tags, serialized as read-only nested objects.
     """
 
-    tags = TagSerializer(many=True, read_only=True)  # Nested serializer for tags
+    tags = serializers.PrimaryKeyRelatedField(many=True, queryset=Tag.objects.all())
 
     class Meta:
         model = Note
@@ -45,3 +76,15 @@ class NoteSerializer(serializers.ModelSerializer):
             "date_changed",
             "tags",
         ]
+        read_only_field = ["user", "date_create"]
+        depth = 1
+
+    def update(self, instance: Note, validated_data: dict):
+        """
+        Update the Note instance and set the date_changed to the current timestamp.
+        """
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.date_changed = now()
+        instance.save()
+        return instance

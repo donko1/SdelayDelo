@@ -4,8 +4,11 @@ from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
 
+from rest_framework.exceptions import ValidationError
+from rest_framework.test import APITestCase
+
 from .models import Note, Tag
-from .serializers import TagSerializer, NoteSerializer
+from .serializers import TagSerializer, NoteSerializer, is_hex_color
 
 
 def aware_datetime(dt):
@@ -19,6 +22,20 @@ def aware_datetime(dt):
 
 
 User = get_user_model()
+
+
+class TestHexColorValidation(TestCase):
+
+    def test_valid_hex_colors(self):
+        self.assertTrue(is_hex_color("#FFFFFF"))
+        self.assertTrue(is_hex_color("#123ABC"))
+        self.assertTrue(is_hex_color("#b55353"))
+
+    def test_invalid_hex_colors(self):
+        self.assertFalse(is_hex_color("123ABC"))
+        self.assertFalse(is_hex_color("#ZZZ"))
+        self.assertFalse(is_hex_color("#12345"))
+        self.assertFalse(is_hex_color("#12345G"))
 
 
 class HelloWorldViewTest(TestCase):
@@ -165,137 +182,183 @@ class NoteModelTest(TestCase):
         self.assertNotIn(note2, work_notes)
 
 
-class TagSerializerTestCase(TestCase):
+class TagSerializerTestCase(APITestCase):
     """
-    Test suite for the TagSerializer.
+    Test case for the TagSerializer.
+
+    This class contains tests for validating and ensuring the correctness of
+    the TagSerializer.
     """
 
     def setUp(self):
         """
-        Create a user and a sample tag for testing.
-        """
-        self.user = User.objects.create_user(username="testuser", password="password")
-        self.tag = Tag.objects.create(
-            title="Test Tag", user=self.user, colour="#FF5733", icon="icon.png"
-        )
+        Set up test data for the TagSerializer tests.
 
-    def test_serialization(self):
+        Creates a user instance and initializes valid and invalid tag data.
         """
-        Test that TagSerializer correctly serializes a Tag instance.
-        """
-        serializer = TagSerializer(instance=self.tag)
-        expected_data = {
-            "id": self.tag.id,
+        self.user = User.objects.create_user(
+            username="testuser", password="password123"
+        )
+        self.valid_tag_data = {
             "title": "Test Tag",
-            "user": self.user.id,
-            "colour": "#FF5733",
+            "colour": "#FFFFFF",
             "icon": "icon.png",
-        }
-        self.assertEqual(serializer.data, expected_data)
-
-    def test_deserialization(self):
-        """
-        Test that TagSerializer correctly deserializes data into a Tag instance.
-        """
-        data = {
-            "title": "New Tag",
             "user": self.user.id,
-            "colour": "#00FF00",
-            "icon": "new_icon.png",
         }
-        serializer = TagSerializer(data=data)
-        self.assertTrue(serializer.is_valid())
-        tag = serializer.save()
-        self.assertEqual(tag.title, "New Tag")
-        self.assertEqual(tag.user, self.user)
-        self.assertEqual(tag.colour, "#00FF00")
-        self.assertEqual(tag.icon, "new_icon.png")
+        self.invalid_tag_data = {
+            "title": "Test Tag",
+            "colour": "InvalidColor",
+        }
+
+    def test_valid_tag_serializer(self):
+        """
+        Test case for a valid tag serializer.
+
+        Ensures that the serializer successfully validates data and the
+        validated data matches the input.
+        """
+        serializer = TagSerializer(data=self.valid_tag_data)
+        serializer.is_valid(raise_exception=True)
+        self.assertEqual(
+            serializer.validated_data["title"], self.valid_tag_data["title"]
+        )
+        self.assertEqual(
+            serializer.validated_data["colour"], self.valid_tag_data["colour"]
+        )
+        self.assertEqual(serializer.validated_data["icon"], self.valid_tag_data["icon"])
+
+    def test_invalid_tag_serializer(self):
+        """
+        Test case for an invalid tag serializer.
+
+        Ensures that the serializer identifies invalid data as not valid.
+        """
+        serializer = TagSerializer(data=self.invalid_tag_data)
+        self.assertFalse(serializer.is_valid())
+
+    def test_tag_serializer_missing_fields(self):
+        """
+        Test case for a tag serializer with missing fields.
+
+        Ensures that the serializer raises ValidationError when required
+        fields are missing.
+        """
+        incomplete_data = {"title": "Incomplete Tag"}
+        serializer = TagSerializer(data=incomplete_data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("colour", serializer.errors)
 
 
-class NoteSerializerTestCase(TestCase):
+class NoteSerializerTestCase(APITestCase):
     """
-    Test suite for the NoteSerializer.
+    Test case for the NoteSerializer.
+
+    This class contains tests for validating and ensuring the correctness of
+    the NoteSerializer.
     """
 
     def setUp(self):
         """
-        Create a user, a tag, and a note for testing.
+        Set up test data for the NoteSerializer tests.
+
+        Creates a user, a tag, and note instances. Initializes valid and
+        invalid note data.
         """
-        self.user = User.objects.create_user(username="testuser", password="password")
+        self.user = User.objects.create_user(
+            username="testuser", password="password123"
+        )
         self.tag = Tag.objects.create(
-            title="Sample Tag", user=self.user, colour="#FF5733"
+            title="Test Tag", colour="#FF5733", user=self.user
         )
-        self.note = Note.objects.create(
-            user=self.user, title="Sample Note", description="Sample description"
-        )
-        self.note.tags.add(self.tag)
-
-    def test_serialization(self):
-        """
-        Test that NoteSerializer correctly serializes a Note instance with tags.
-        """
-        serializer = NoteSerializer(instance=self.note)
-        expected_data = {
-            "id": self.note.id,
-            "user": self.user.id,
-            "title": "Sample Note",
-            "description": "Sample description",
-            "date_create": self.note.date_create.isoformat(),
-            "date_changed": self.note.date_changed.isoformat(),
-            "tags": [
-                {
-                    "id": self.tag.id,
-                    "title": "Sample Tag",
-                    "user": self.user.id,
-                    "colour": "#FF5733",
-                    "icon": None,
-                }
-            ],
-        }
-
-        # Compare individual fields to handle timezone issues
-        for field in ["id", "user", "title", "description", "tags"]:
-            self.assertEqual(serializer.data[field], expected_data[field])
-
-        # Compare datetime fields with timezone handling
-        self.assertEqual(
-            aware_datetime(serializer.data["date_create"]),
-            aware_datetime(expected_data["date_create"]),
-        )
-        self.assertEqual(
-            aware_datetime(serializer.data["date_changed"]),
-            aware_datetime(expected_data["date_changed"]),
-        )
-
-    def test_deserialization(self):
-        """
-        Test that NoteSerializer correctly deserializes data into a Note instance.
-        """
-        data = {
-            "user": self.user.id,
-            "title": "New Note",
-            "description": "New note description",
-        }
-        serializer = NoteSerializer(data=data)
-        self.assertTrue(serializer.is_valid())
-        note = serializer.save()
-        self.assertEqual(note.title, "New Note")
-        self.assertEqual(note.description, "New note description")
-        self.assertEqual(note.user, self.user)
-
-    def test_add_tags_to_note(self):
-        """
-        Test that tags can be associated with a Note instance during deserialization.
-        """
-        data = {
-            "user": self.user.id,
-            "title": "Note with Tags",
-            "description": "This note has tags.",
+        self.valid_note_data = {
+            "title": "Test Note",
+            "description": "This is a test note.",
             "tags": [self.tag.id],
         }
-        serializer = NoteSerializer(data=data)
-        self.assertTrue(serializer.is_valid())
-        note = serializer.save()
-        note.tags.set([self.tag])  # Explicitly associate tags
-        self.assertEqual(note.tags.count(), 1)
-        self.assertEqual(note.tags.first(), self.tag)
+        self.invalid_note_data = {
+            "title": "",
+            "description": "This is a test note.",
+        }
+        self.note = Note.objects.create(
+            user=self.user,
+            title="Existing Note",
+            description="An existing note description.",
+        )
+
+    def test_valid_note_serializer(self):
+        """
+        Test case for a valid note serializer.
+
+        Ensures that the serializer successfully validates data and the
+        validated data matches the input.
+        """
+        serializer = NoteSerializer(data=self.valid_note_data)
+        serializer.is_valid(raise_exception=True)
+        self.assertEqual(
+            serializer.validated_data["title"], self.valid_note_data["title"]
+        )
+        self.assertEqual(
+            serializer.validated_data["description"],
+            self.valid_note_data["description"],
+        )
+
+    def test_invalid_note_serializer(self):
+        """
+        Test case for an invalid note serializer.
+
+        Ensures that the serializer raises a ValidationError when
+        invalid data is provided.
+        """
+        serializer = NoteSerializer(data=self.invalid_note_data)
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+        self.assertIn("This field may not be blank.", str(context.exception))
+
+    def test_note_serializer_update(self):
+        """
+        Test case for updating a note using the NoteSerializer.
+
+        Ensures that the serializer updates the note instance correctly
+        and updates the date_changed field.
+        """
+        updated_data = {
+            "title": "Updated Note",
+            "description": "Updated description.",
+        }
+        serializer = NoteSerializer(instance=self.note, data=updated_data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated_note = serializer.save()
+        self.assertEqual(updated_note.title, updated_data["title"])
+        self.assertEqual(updated_note.description, updated_data["description"])
+        self.assertTrue(updated_note.date_changed > updated_note.date_create)
+
+    def test_note_serializer_with_tags(self):
+        """
+        Test case for a note serializer with associated tags.
+
+        Ensures that the serializer correctly validates and serializes
+        tags data.
+        """
+        data_with_tags = {
+            "title": "Tagged Note",
+            "description": "A note with tags.",
+            "tags": [self.tag.id],
+        }
+        serializer = NoteSerializer(data=data_with_tags)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        self.assertEqual(validated_data["title"], data_with_tags["title"])
+        self.assertEqual(validated_data["description"], data_with_tags["description"])
+        self.assertIn(self.tag.id, [tag.id for tag in validated_data["tags"]])
+
+    def test_note_serializer_missing_title(self):
+        """
+        Test case for a note serializer with a missing title field.
+
+        Ensures that the serializer raises a ValidationError for
+        missing required fields.
+        """
+        data_missing_title = {"description": "No title provided."}
+        serializer = NoteSerializer(data=data_missing_title)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("title", serializer.errors)

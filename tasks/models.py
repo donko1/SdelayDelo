@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.utils.timezone import now
 
 User = get_user_model()
 
@@ -44,3 +45,7 @@ class Note(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        self.date_changed = now()  # Явное обновление при каждом сохранении
+        super().save(*args, **kwargs)
