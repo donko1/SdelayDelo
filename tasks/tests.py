@@ -274,6 +274,7 @@ class NoteSerializerTestCase(APITestCase):
             "title": "Test Note",
             "description": "This is a test note.",
             "tags": [self.tag.id],
+            "user":self.user.id
         }
         self.invalid_note_data = {
             "title": "",
@@ -319,18 +320,22 @@ class NoteSerializerTestCase(APITestCase):
         Test case for updating a note using the NoteSerializer.
 
         Ensures that the serializer updates the note instance correctly
-        and updates the date_changed field.
+        and updates the date_changed field to a new value.
         """
         updated_data = {
             "title": "Updated Note",
             "description": "Updated description.",
         }
+        old_date_changed = self.note.date_changed
         serializer = NoteSerializer(instance=self.note, data=updated_data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_note = serializer.save()
+
         self.assertEqual(updated_note.title, updated_data["title"])
         self.assertEqual(updated_note.description, updated_data["description"])
         self.assertTrue(updated_note.date_changed > updated_note.date_create)
+        self.assertTrue(updated_note.date_changed > old_date_changed) 
+
 
     def test_note_serializer_with_tags(self):
         """
@@ -343,6 +348,7 @@ class NoteSerializerTestCase(APITestCase):
             "title": "Tagged Note",
             "description": "A note with tags.",
             "tags": [self.tag.id],
+            "user":self.user.id
         }
         serializer = NoteSerializer(data=data_with_tags)
         serializer.is_valid(raise_exception=True)

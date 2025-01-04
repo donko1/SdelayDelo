@@ -45,7 +45,3 @@ class Note(models.Model):
 
     def __str__(self):
         return self.title
-
-    def save(self, *args, **kwargs):
-        self.date_changed = now()  # Явное обновление при каждом сохранении
-        super().save(*args, **kwargs)

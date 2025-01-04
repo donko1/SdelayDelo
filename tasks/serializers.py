@@ -77,14 +77,3 @@ class NoteSerializer(serializers.ModelSerializer):
             "tags",
         ]
         read_only_field = ["user", "date_create"]
-        depth = 1
-
-    def update(self, instance: Note, validated_data: dict):
-        """
-        Update the Note instance and set the date_changed to the current timestamp.
-        """
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.date_changed = now()
-        instance.save()
-        return instance
