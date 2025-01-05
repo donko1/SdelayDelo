@@ -42,6 +42,10 @@ class Note(models.Model):
     date_create = models.DateTimeField(auto_now_add=True)
     date_changed = models.DateTimeField(auto_now=True)
     tags = models.ManyToManyField(Tag, related_name="notes", blank=True)
+    is_pinned = models.BooleanField(default=False)
 
     def __str__(self):
         return self.title
+
+    class Meta:
+        ordering = ["-is_pinned"]

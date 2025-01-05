@@ -181,6 +181,34 @@ class NoteModelTest(TestCase):
         self.assertNotIn(note1, personal_notes)
         self.assertNotIn(note2, work_notes)
 
+    def test_note_is_ordering_by_pinning(self):
+        """Test if model base ordering by pinning and base value of is_pinned is false"""
+        note1 = Note.objects.create(
+            user=self.user, title="Test-note-1", description="some description-1."
+        )
+        note2 = Note.objects.create(
+            user=self.user, title="Test-note-2", description="some description-2"
+        )
+        note3 = Note.objects.create(
+            user=self.user, title="Test-note-3", description="some description-3"
+        )
+        note4 = Note.objects.create(
+            user=self.user, title="Test-note-4", description="some description-4"
+        )
+
+        note2.is_pinned = True
+        note3.is_pinned = True
+
+        note2.save()
+        note3.save()
+
+        self.assertTrue(note2.is_pinned)
+        self.assertFalse(note1.is_pinned)
+
+        self.assertEqual(
+            list(Note.objects.all()), list(Note.objects.order_by("-is_pinned"))
+        )
+
 
 class TagSerializerTestCase(APITestCase):
     """
@@ -274,7 +302,7 @@ class NoteSerializerTestCase(APITestCase):
             "title": "Test Note",
             "description": "This is a test note.",
             "tags": [self.tag.id],
-            "user":self.user.id
+            "user": self.user.id,
         }
         self.invalid_note_data = {
             "title": "",
@@ -334,8 +362,7 @@ class NoteSerializerTestCase(APITestCase):
         self.assertEqual(updated_note.title, updated_data["title"])
         self.assertEqual(updated_note.description, updated_data["description"])
         self.assertTrue(updated_note.date_changed > updated_note.date_create)
-        self.assertTrue(updated_note.date_changed > old_date_changed) 
-
+        self.assertTrue(updated_note.date_changed > old_date_changed)
 
     def test_note_serializer_with_tags(self):
         """
@@ -348,7 +375,7 @@ class NoteSerializerTestCase(APITestCase):
             "title": "Tagged Note",
             "description": "A note with tags.",
             "tags": [self.tag.id],
-            "user":self.user.id
+            "user": self.user.id,
         }
         serializer = NoteSerializer(data=data_with_tags)
         serializer.is_valid(raise_exception=True)
