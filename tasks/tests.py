@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.test import APITestCase
 
-from .models import Note, Tag
+from .models import Note, Tag, custom_user
 from .serializers import TagSerializer, NoteSerializer
 from .validators import is_hex_color
 
@@ -26,7 +26,32 @@ def aware_datetime(dt):
 User = get_user_model()
 
 
+class UserCustomModelTest(TestCase):
+    """This test case tests if user model is custom_user model from ./models.py"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="testuser", password="testpassword"
+        )
+
+    def check_if_user_models_are_the_same(self):
+        """Tests if models are the same"""
+        self.assertEqual(custom_user, User)
+
+    def test_telegram_id_field(self):
+        """Tests if telegram id field is exists and correct working. Checking validators"""
+        self.assertEqual(self.user.telegram_id, "")
+        self.user.telegram_id = 123
+        self.user.save()
+        self.assertEqual(123, self.user.telegram_id)
+        self.user.telegram_id = "x" * 300  # More than 255 symbols
+        with self.assertRaises(DjangoValidationError):
+            self.user.full_clean()
+            self.user.save()
+
+
 class TestHexColorValidation(TestCase):
+    """This test case tests if is_hex_color func works correct"""
 
     def test_valid_hex_colors(self):
         self.assertTrue(is_hex_color("#FFFFFF"))
@@ -94,22 +119,15 @@ class TagModelTest(TestCase):
         The model should accept a valid HEX color.
         """
         tag = Tag(title="Test Tag", colour="#25a3ed", user=self.user)
-        try:
-            tag.full_clean()
-        except DjangoValidationError:
-            self.fail("Valid HEX color raised ValidationError.")
+        tag.full_clean()
 
     def test_invalid_hex_color(self):
         """
         The model should reject an invalid HEX color.
         """
         tag = Tag(title="Test Tag", colour="123ABC", user=self.user)
-        try:
+        with self.assertRaises(DjangoValidationError):
             tag.full_clean()
-        except DjangoValidationError:
-            pass
-        else:
-            self.fail("Valid NOT HEX color NOT raised Validation error")
 
 
 class NoteModelTest(TestCase):

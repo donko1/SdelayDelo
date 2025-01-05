@@ -1,9 +1,15 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser
 
 # from django.utils.timezone import now
 
 from .validators import validate_hex_color
+
+
+class custom_user(AbstractUser):
+    telegram_id = models.CharField(max_length=255, unique=True)
+
 
 User = get_user_model()
 
