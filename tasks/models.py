@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.utils.timezone import now
+
+# from django.utils.timezone import now
+
+from .validators import validate_hex_color
 
 User = get_user_model()
 
@@ -17,7 +20,9 @@ class Tag(models.Model):
 
     title = models.CharField(max_length=255)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tags")
-    colour = models.CharField(max_length=7)  # Hexadecimal color code
+    colour = models.CharField(
+        max_length=7, validators=[validate_hex_color]
+    )  # Hexadecimal color code
     icon = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):

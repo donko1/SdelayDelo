@@ -1,19 +1,7 @@
 from rest_framework import serializers
 from .models import Tag, Note
 from django.utils.timezone import now
-import re
-
-
-def is_hex_color(s):
-    """
-    Checks if a string is a valid HEX color.
-    Supports formats: #RGB, #RRGGBB, #RGBA, #RRGGBBAA.
-
-    :param s: The string to validate
-    :return: True if the string is a valid HEX color, otherwise False
-    """
-    pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
-    return bool(re.match(pattern, s))
+from .validators import is_hex_color
 
 
 class TagSerializer(serializers.ModelSerializer):

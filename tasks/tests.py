@@ -5,10 +5,12 @@ from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
 
 from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.test import APITestCase
 
 from .models import Note, Tag
-from .serializers import TagSerializer, NoteSerializer, is_hex_color
+from .serializers import TagSerializer, NoteSerializer
+from .validators import is_hex_color
 
 
 def aware_datetime(dt):
@@ -86,6 +88,28 @@ class TagModelTest(TestCase):
         """Test the string representation of a Tag."""
         tag = Tag.objects.create(title="Important", user=self.user, colour="#FF0000")
         self.assertEqual(str(tag), "Important")
+
+    def test_valid_hex_color(self):
+        """
+        The model should accept a valid HEX color.
+        """
+        tag = Tag(title="Test Tag", colour="#25a3ed", user=self.user)
+        try:
+            tag.full_clean()
+        except DjangoValidationError:
+            self.fail("Valid HEX color raised ValidationError.")
+
+    def test_invalid_hex_color(self):
+        """
+        The model should reject an invalid HEX color.
+        """
+        tag = Tag(title="Test Tag", colour="123ABC", user=self.user)
+        try:
+            tag.full_clean()
+        except DjangoValidationError:
+            pass
+        else:
+            self.fail("Valid NOT HEX color NOT raised Validation error")
 
 
 class NoteModelTest(TestCase):
@@ -275,6 +299,24 @@ class TagSerializerTestCase(APITestCase):
         serializer = TagSerializer(data=incomplete_data)
         self.assertFalse(serializer.is_valid())
         self.assertIn("colour", serializer.errors)
+
+    def test_valid_hex_color(self):
+        """
+        The serializer should accept a valid HEX color.
+        """
+        data = {"title": "Test Tag", "colour": "#123ABC", "user": self.user.id}
+        serializer = TagSerializer(data=data)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_invalid_hex_color(self):
+        """
+        The serializer should reject an invalid HEX color.
+        """
+        data = {"title": "Test Tag", "colour": "123ABC", "user": self.user.id}
+        serializer = TagSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("colour", serializer.errors)
+        self.assertEqual(serializer.errors["colour"][0], "Invalid HEX color code.")
 
 
 class NoteSerializerTestCase(APITestCase):
