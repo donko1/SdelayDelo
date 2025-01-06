@@ -120,3 +120,5 @@ except ImportError:
     print(
         "Local settings file not found. Please create one based on local_settings.py.example"
     )
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
