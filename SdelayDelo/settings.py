@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -120,5 +121,11 @@ except ImportError:
     print(
         "Local settings file not found. Please create one based on local_settings.py.example"
     )
+    sys.exit(1)
+except SyntaxError:
+    print(
+        "Local settings file is not full. Please check if local_settings.py have all information(especially email)"
+    )
+    sys.exit(1)
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
