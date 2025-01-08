@@ -7,8 +7,10 @@ from django.utils.timezone import is_naive, make_aware
 from rest_framework.exceptions import ValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.test import APITestCase
+from rest_framework import status
 
-from .models import Note, Tag, custom_user
+
+from .models import Note, Tag, custom_user, TokenToEmail
 from .serializers import TagSerializer, NoteSerializer
 from .validators import is_hex_color
 
@@ -40,7 +42,7 @@ class UserCustomModelTest(TestCase):
 
     def test_telegram_id_field(self):
         """Tests if telegram id field is exists and correct working. Checking validators"""
-        self.assertEqual(self.user.telegram_id, "")
+        self.assertEqual(self.user.telegram_id, None)
         self.user.telegram_id = 123
         self.user.save()
         self.assertEqual(123, self.user.telegram_id)
@@ -455,3 +457,67 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(data=data_missing_title)
         self.assertFalse(serializer.is_valid())
         self.assertIn("title", serializer.errors)
+
+
+class RegistrationAPITests(APITestCase):
+
+    def test_checking_of_email_registering(self):
+        """
+        Test the api endpoint correctly checks if email registering
+        """
+        url = "/api/check_if_email_registered/"
+        user = User.objects.create_user(
+            username="testuser", email="testemail@email.com", password="testpassword"
+        )
+
+        response1 = self.client.get(url)
+        self.assertEqual(response1.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response2 = self.client.get(url, data={"email": "testemail@email.com"})
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        self.assertTrue(response2.data.get("email_is_registered"))
+
+        response3 = self.client.get(url, data={"email": "testemail2@email.com"})
+        self.assertEqual(response3.status_code, status.HTTP_200_OK)
+        self.assertFalse(response3.data.get("email_is_registered"))
+
+    def test_send_code(self):
+        """
+        Test the API endpoint for sending a verification code to the provided email.
+        """
+        url = "/api/send_code/"
+        data = {"email": "test@example.com"}
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(TokenToEmail.objects.filter(email="test@example.com").exists())
+
+    def test_check_code(self):
+        """
+        Test the API endpoint for verifying the code and retrieving a token.
+        """
+        # Create a token manually for testing
+        token_obj = TokenToEmail.objects.create(email="test@example.com")
+        token_obj.save()
+
+        url = "/api/check_code/"
+        data = {"email": "test@example.com", "code": token_obj.code}
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
+    def test_register(self):
+        """
+        Test the API endpoint for registering a user and retrieving an access token.
+        """
+        # Create a token manually for testing
+        token_obj = TokenToEmail.objects.create(email="test@example.com")
+        token_obj.save()
+
+        url = f"/api/register/{token_obj.token}/"
+        data = {
+            "username": "testuser",
+            "password": "password123",
+        }
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("access_key", response.data)
