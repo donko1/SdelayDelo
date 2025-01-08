@@ -65,7 +65,7 @@ class Note(models.Model):
         ordering = ["-is_pinned"]
 
 
-class TokenToEmail(models.Model):
+class TokenToEmail(models.Model):  # TODO: make a code more random.
     """
     This model is for creating token and key-code for register user
     Fields:

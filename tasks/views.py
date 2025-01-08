@@ -22,7 +22,7 @@ def hello_world(request):
     return Response({"content": "Hello world!"})
 
 
-@api_view(["GET"])
+@api_view(["GET"])  # TODO: add validator ro email
 def check_if_email_registered(request):
     """
     API endpoint that return false if email had an account
@@ -39,7 +39,9 @@ def check_if_email_registered(request):
     )
 
 
-class SendCodeView(APIView):
+class SendCodeView(
+    APIView
+):  # TODO: add django-ratelimit to this and next API and validator to this
     """
     API endpoint to send a verification code to the user's email.
     """
