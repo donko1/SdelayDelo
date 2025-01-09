@@ -60,7 +60,9 @@ def send_verification_code(request):
             {"detail": "Verification code sent."}, status=status.HTTP_200_OK
         )
     except Exception as e:
-        return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"detail": "An error occurred."}, status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @api_view(["POST"])

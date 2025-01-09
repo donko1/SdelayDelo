@@ -72,49 +72,63 @@ class Note(models.Model):
 class TokenToEmail(models.Model):
     """
     Model representing a verification token sent to an email address for registration.
+
+    Attributes:
+    - email: The user's email address to which the token is associated.
+    - code: A 6-digit verification code sent to the user.
+    - token_hash: A hashed representation of the token for security purposes.
+    - salt: A random unique string added to the token for secure hashing.
+    - created_at: The datetime when the token was created.
+    - expires_at: The datetime when the token will expire.
+    - is_verified: A flag indicating whether the email has been successfully verified.
     """
 
     email = models.EmailField(unique=True)
     code = models.CharField(max_length=6, editable=False)
     token_hash = models.CharField(max_length=64, editable=False, unique=True)
+    salt = models.CharField(
+        max_length=32, editable=False, default=get_random_string(32)
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(default=timezone.now() + timedelta(days=1))
     is_verified = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         """
-        Overriding the save method to generate the code and hash token before saving the model.
+        Overriding the save method to generate the verification code, token, and salt.
         """
         if not self.code:
             self.code = get_random_string(length=6, allowed_chars="0123456789")
         if not self.token_hash:
-            # Generate a raw token and hash it
-            raw_token = str(uuid.uuid4())  # Create a unique UUID token
-            self.token_hash = self.hash_token(raw_token)
+            raw_token = str(uuid.uuid4())  # Generate a unique raw token
+            self.salt = get_random_string(32)  # Generate a unique salt
+            self.token_hash = self.hash_token(raw_token, self.salt)
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(
                 days=1
-            )  # Token expires in 1 day
+            )  # Default expiration: 1 day
         super().save(*args, **kwargs)
 
     @staticmethod
-    def hash_token(token):
+    def hash_token(token, salt=None):
         """
-        Creates a secure hash of the token using SHA256 with the app's secret key.
+        Creates a secure hash of the token using SHA256, a salt, and the app's secret key.
 
         Args:
-        - token (str): Raw token to be hashed.
+        - token (str): The raw token to be hashed.
+        - salt (str, optional): The salt to add randomness to the hash. If not provided, a new random salt will be generated.
 
         Returns:
-        - str: The hashed token.
+        - tuple: A tuple containing the hash and the salt used.
         """
-
+        salt = salt or ""
         secret_key = settings.SECRET_KEY.encode()
-        return hashlib.sha256(secret_key + token.encode()).hexdigest()
+        token_with_salt = token.encode() + salt.encode()
+        return hashlib.sha256(secret_key + token_with_salt).hexdigest(), salt
 
     def send_verification_email(self):
         """
-        Sends the verification code to the user's email.
+        Sends a verification email containing the 6-digit code to the user's email address.
         """
         subject = "Verification Code for Your Account"
         message = f"Your verification code is: {self.code}"
@@ -122,13 +136,13 @@ class TokenToEmail(models.Model):
 
     def validate_email(self, code):
         """
-        Validates the provided verification code and marks the email as verified.
+        Validates the provided code and marks the email as verified if successful.
 
         Args:
-        - code (str): Verification code provided by the user.
+        - code (str): The 6-digit verification code provided by the user.
 
         Returns:
-        - bool: True if the code matches and the token has not expired, otherwise False.
+        - bool: True if the code is correct and the token is not expired; False otherwise.
         """
         if self.code == code and timezone.now() <= self.expires_at:
             self.is_verified = True
@@ -137,4 +151,7 @@ class TokenToEmail(models.Model):
         return False
 
     def __str__(self):
+        """
+        String representation of the model.
+        """
         return f"TokenToEmail(email={self.email}, is_verified={self.is_verified})"
