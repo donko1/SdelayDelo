@@ -34,4 +34,4 @@ class UserAdmin(admin.ModelAdmin):
 class TokenToEmailAdmin(admin.ModelAdmin):
     """Admin interface for TokenToEmail model"""
 
-    list_display = ("email", "code", "token")
+    list_display = ["email", "code", "token_hash", "is_verified"]

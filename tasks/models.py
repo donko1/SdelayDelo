@@ -4,8 +4,12 @@ from django.contrib.auth.models import AbstractUser
 from django.utils.crypto import get_random_string
 from django.core.mail import send_mail
 from django.conf import settings
+from django.utils import timezone
 
+import hashlib
 import uuid
+from datetime import timedelta
+
 
 from .validators import validate_hex_color
 
@@ -65,33 +69,72 @@ class Note(models.Model):
         ordering = ["-is_pinned"]
 
 
-class TokenToEmail(models.Model):  # TODO: make a code more random.
+class TokenToEmail(models.Model):
     """
-    This model is for creating token and key-code for register user
-    Fields:
-    - email: the email of the owner
-    - code: code from 6 random integers that the user must write to confirm the email
-    - token: access token to create/edit account
-    - created_at: timestamp for when the token was created
+    Model representing a verification token sent to an email address for registration.
     """
 
     email = models.EmailField(unique=True)
     code = models.CharField(max_length=6, editable=False)
-    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    token_hash = models.CharField(max_length=64, editable=False, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(default=timezone.now() + timedelta(days=1))
+    is_verified = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
+        """
+        Overriding the save method to generate the code and hash token before saving the model.
+        """
         if not self.code:
             self.code = get_random_string(length=6, allowed_chars="0123456789")
+        if not self.token_hash:
+            # Generate a raw token and hash it
+            raw_token = str(uuid.uuid4())  # Create a unique UUID token
+            self.token_hash = self.hash_token(raw_token)
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(
+                days=1
+            )  # Token expires in 1 day
         super().save(*args, **kwargs)
+
+    @staticmethod
+    def hash_token(token):
+        """
+        Creates a secure hash of the token using SHA256 with the app's secret key.
+
+        Args:
+        - token (str): Raw token to be hashed.
+
+        Returns:
+        - str: The hashed token.
+        """
+
+        secret_key = settings.SECRET_KEY.encode()
+        return hashlib.sha256(secret_key + token.encode()).hexdigest()
 
     def send_verification_email(self):
         """
-        Sends a verification email to the user with the code.
+        Sends the verification code to the user's email.
         """
-        subject = "Код для подтверждения SdelayDelo"
-        message = f"Код для подтверждения почты: {self.code}"
+        subject = "Verification Code for Your Account"
+        message = f"Your verification code is: {self.code}"
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [self.email])
 
+    def validate_email(self, code):
+        """
+        Validates the provided verification code and marks the email as verified.
+
+        Args:
+        - code (str): Verification code provided by the user.
+
+        Returns:
+        - bool: True if the code matches and the token has not expired, otherwise False.
+        """
+        if self.code == code and timezone.now() <= self.expires_at:
+            self.is_verified = True
+            self.save(update_fields=["is_verified"])
+            return True
+        return False
+
     def __str__(self):
-        return f"TokenToEmail(email={self.email}, token={self.token})"
+        return f"TokenToEmail(email={self.email}, is_verified={self.is_verified})"

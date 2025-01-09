@@ -24,6 +24,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+TESTING = sys.argv[1:2] == ["test"]
+
 
 # Application definition
 
@@ -116,6 +118,18 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+if not TESTING:
+    REST_FRAMEWORK = {
+        "DEFAULT_THROTTLE_CLASSES": [
+            "rest_framework.throttling.AnonRateThrottle",
+            "rest_framework.throttling.UserRateThrottle",
+        ],
+        "DEFAULT_THROTTLE_RATES": {"anon": "4/m", "user": "10/m"},
+    }
+
+
 try:
     from .local_settings import *
 except ImportError:
@@ -128,5 +142,3 @@ except SyntaxError:
         "Local settings file is not full. Please check if local_settings.py have all information(especially email)"
     )
     sys.exit(1)
-
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

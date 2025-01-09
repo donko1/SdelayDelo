@@ -8,7 +8,7 @@ urlpatterns = [
         views.check_if_email_registered,
         name="check_if_email_registered",
     ),
-    path("api/send_code/", views.SendCodeView.as_view(), name="send_code"),
-    path("api/check_code/", views.CheckCodeView.as_view(), name="check_code"),
-    path("api/register/<uuid:token>/", views.RegisterView.as_view(), name="register"),
+    path("api/send_code/", views.send_verification_code, name="send_code"),
+    path("api/check_code/", views.verify_code, name="check_code"),
+    path("api/register/", views.register_user, name="register"),
 ]

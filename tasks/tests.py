@@ -8,7 +8,9 @@ from rest_framework.exceptions import ValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.test import APITestCase
 from rest_framework import status
+from django.utils.timezone import now, timedelta
 
+import uuid
 
 from .models import Note, Tag, custom_user, TokenToEmail
 from .serializers import TagSerializer, NoteSerializer
@@ -459,65 +461,92 @@ class NoteSerializerTestCase(APITestCase):
         self.assertIn("title", serializer.errors)
 
 
-class RegistrationAPITests(APITestCase):
+class EmailVerificationTests(APITestCase):
 
-    def test_checking_of_email_registering(self):
-        """
-        Test the api endpoint correctly checks if email registering
-        """
-        url = "/api/check_if_email_registered/"
-        user = User.objects.create_user(
-            username="testuser", email="testemail@email.com", password="testpassword"
+    def test_check_if_email_registered(self):
+        url = reverse("check_if_email_registered")
+        # Test missing email
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test unregistered email
+        response = self.client.get(url, {"email": "test@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["email_is_registered"])
+
+        # Test registered email
+        User.objects.create_user(
+            username="testuser", email="test@example.com", password="password"
         )
+        response = self.client.get(url, {"email": "test@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["email_is_registered"])
 
-        response1 = self.client.get(url)
-        self.assertEqual(response1.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_send_verification_code(self):
+        url = reverse("send_code")
+        # Test missing email
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        response2 = self.client.get(url, data={"email": "testemail@email.com"})
-        self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        self.assertTrue(response2.data.get("email_is_registered"))
-
-        response3 = self.client.get(url, data={"email": "testemail2@email.com"})
-        self.assertEqual(response3.status_code, status.HTTP_200_OK)
-        self.assertFalse(response3.data.get("email_is_registered"))
-
-    def test_send_code(self):
-        """
-        Test the API endpoint for sending a verification code to the provided email.
-        """
-        url = "/api/send_code/"
-        data = {"email": "test@example.com"}
-        response = self.client.post(url, data)
+        # Test valid email
+        response = self.client.post(url, {"email": "test@example.com"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(TokenToEmail.objects.filter(email="test@example.com").exists())
 
-    def test_check_code(self):
-        """
-        Test the API endpoint for verifying the code and retrieving a token.
-        """
-        # Create a token manually for testing
+    def test_verify_code(self):
+        url = reverse("check_code")
         token_obj = TokenToEmail.objects.create(email="test@example.com")
-        token_obj.save()
+        # Test missing data
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        url = "/api/check_code/"
-        data = {"email": "test@example.com", "code": token_obj.code}
-        response = self.client.post(url, data)
+        # Test invalid code
+        response = self.client.post(
+            url, {"email": "test@example.com", "code": "123456"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test valid code
+        response = self.client.post(
+            url, {"email": "test@example.com", "code": token_obj.code}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
 
-    def test_register(self):
-        """
-        Test the API endpoint for registering a user and retrieving an access token.
-        """
-        # Create a token manually for testing
-        token_obj = TokenToEmail.objects.create(email="test@example.com")
+    def test_register_user(self):
+        url = reverse("register")
+        token_obj = TokenToEmail.objects.create(
+            email="test@example.com", is_verified=True
+        )
+        raw_token = str(uuid.uuid4())
+        token_obj.token_hash = TokenToEmail.hash_token(raw_token)
         token_obj.save()
 
-        url = f"/api/register/{token_obj.token}/"
-        data = {
-            "username": "testuser",
-            "password": "password123",
-        }
-        response = self.client.post(url, data)
+        # Test missing token
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test invalid token
+        response = self.client.post(url, {"token": "invalid_token"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test expired token
+        token_obj.expires_at = now() - timedelta(days=1)
+        token_obj.save()
+        response = self.client.post(url, {"token": raw_token})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test valid token
+        token_obj.expires_at = now() + timedelta(days=1)
+        token_obj.save()
+        response = self.client.post(
+            url,
+            {
+                "token": raw_token,
+                "username": "testuser",
+                "password": "password",
+                "email": "example@example.com",
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("access_key", response.data)
+        self.assertTrue(User.objects.filter(username="testuser").exists())
