@@ -145,8 +145,7 @@ class TokenToEmail(models.Model):
         - bool: True if the code is correct and the token is not expired; False otherwise.
         """
         if self.code == code and timezone.now() <= self.expires_at:
-            self.is_verified = True
-            self.save(update_fields=["is_verified"])
+
             return True
         return False
 

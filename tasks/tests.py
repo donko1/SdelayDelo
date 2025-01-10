@@ -3,20 +3,22 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
-from django.utils.crypto import get_random_string
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.timezone import now, timedelta
 
 
 from rest_framework.exceptions import ValidationError
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
 from rest_framework import status
+from rest_framework.authtoken.models import Token
+
 
 import uuid
 
 from .models import Note, Tag, custom_user, TokenToEmail
 from .serializers import TagSerializer, NoteSerializer
 from .validators import is_hex_color
+from .views import who_am_i
 
 
 def aware_datetime(dt):
@@ -552,3 +554,59 @@ class EmailVerificationTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(User.objects.filter(username="testuser").exists())
+
+
+class WhoAmIViewTest(APITestCase):
+
+    def setUp(self):
+        """
+        Set up method to prepare the necessary resources for the tests.
+        This method creates a user without a token, a user with a token,
+        and obtains the endpoint url.
+        """
+        self.User = get_user_model()
+
+        # Create user without token
+        self.user = self.User.objects.create_user(
+            username="testuser_no_token",
+            password="testpassword",
+            email="test_no_token@example.com",
+        )
+        # Create user with token
+        self.user_with_token = self.User.objects.create_user(
+            username="testuser_with_token",
+            password="testpassword",
+            email="test_with_token@example.com",
+        )
+        self.access_token = Token.objects.create(user=self.user_with_token).key
+
+        self.factory = APIRequestFactory()
+
+        self.user_with_token.is_active = True
+        self.user_with_token.save()
+
+        self.whoami_url = reverse("whoami")  # Suppose that url name is 'whoami'
+
+    def test_authenticated_user_returns_username_and_email(self):
+        """
+        Test that an authenticated user receives their username and email.
+        """
+        request = self.factory.get(self.whoami_url)
+        force_authenticate(request, user=self.user_with_token, token=self.access_token)
+        response = who_am_i(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["user"]["username"], self.user_with_token.username
+        )
+        self.assertEqual(response.data["user"]["email"], self.user_with_token.email)
+
+    def test_unauthenticated_user_returns_error_message(self):
+        """
+        Test that an unauthenticated user receives an appropriate error message.
+
+        This test sends a request without an access token and verifies
+        that the response includes an error message, and has 401 or 403 status code.
+        """
+        response = self.client.get(self.whoami_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("detail", response.data)

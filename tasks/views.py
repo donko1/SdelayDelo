@@ -1,9 +1,10 @@
-from rest_framework.decorators import api_view, throttle_classes
+from rest_framework.decorators import api_view, throttle_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.permissions import IsAuthenticated
 
 from django.contrib.auth import get_user_model
 from django.utils.timezone import now
@@ -13,6 +14,7 @@ import uuid
 
 from .models import TokenToEmail
 from .serializers import RegisterSerializer
+from .throttles import WhoAmIRateThrottle
 
 
 User = get_user_model()
@@ -30,7 +32,7 @@ def hello_world(request):
 
 
 @api_view(["GET"])
-@throttle_classes([AnonRateThrottle])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def check_if_email_registered(request):
     email = request.query_params.get("email")
     if not email:
@@ -45,7 +47,7 @@ def check_if_email_registered(request):
 
 # Send verification code to the provided email
 @api_view(["POST"])
-@throttle_classes([AnonRateThrottle])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def send_verification_code(request):
     email = request.data.get("email")
     if not email:
@@ -66,7 +68,7 @@ def send_verification_code(request):
 
 
 @api_view(["POST"])
-@throttle_classes([AnonRateThrottle])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def verify_code(request):
     """
     Verifies the email with the provided 6-digit code and returns a registration token.
@@ -83,11 +85,12 @@ def verify_code(request):
     try:
         token_obj = TokenToEmail.objects.get(email=email)
 
-        if token_obj.validate_email(code):
+        if token_obj.validate_email(code) and not token_obj.is_verified:
             # Generate a new registration token
             raw_token = str(uuid.uuid4())
             token_obj.token_hash = TokenToEmail.hash_token(raw_token)
-            token_obj.save(update_fields=["token_hash"])
+            token_obj.is_verified = True
+            token_obj.save(update_fields=["token_hash", "is_verified"])
 
             return Response(
                 {"message": "Email successfully verified.", "token": raw_token},
@@ -106,7 +109,7 @@ def verify_code(request):
 
 
 @api_view(["POST"])
-@throttle_classes([AnonRateThrottle])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def register_user(request):
     """
     Register a new user using the provided registration token.
@@ -156,4 +159,20 @@ def register_user(request):
         return Response(
             {"detail": "Invalid registration token."},
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["GET"])
+@throttle_classes([WhoAmIRateThrottle])
+def who_am_i(request):
+
+    if request.user.is_authenticated:
+        return Response(
+            {"user": {"email": request.user.email, "username": request.user.username}},
+            status=status.HTTP_200_OK,
+        )
+    else:
+        return Response(
+            {"detail": "Authentication credentials were not provided."},
+            status=status.HTTP_401_UNAUTHORIZED,
         )
