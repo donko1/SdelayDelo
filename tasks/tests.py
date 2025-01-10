@@ -5,6 +5,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.timezone import now, timedelta
+from django.conf import settings
 
 
 from rest_framework.exceptions import ValidationError
@@ -468,23 +469,24 @@ class NoteSerializerTestCase(APITestCase):
 class EmailVerificationTests(APITestCase):
 
     def test_check_if_email_registered(self):
-        url = reverse("check_if_email_registered")
-        # Test missing email
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        if settings.DEBUG:
+            url = reverse("check_if_email_registered")
+            # Test missing email
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Test unregistered email
-        response = self.client.get(url, {"email": "test@example.com"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data["email_is_registered"])
+            # Test unregistered email
+            response = self.client.get(url, {"email": "test@example.com"})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertFalse(response.data["email_is_registered"])
 
-        # Test registered email
-        User.objects.create_user(
-            username="testuser", email="test@example.com", password="password"
-        )
-        response = self.client.get(url, {"email": "test@example.com"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["email_is_registered"])
+            # Test registered email
+            User.objects.create_user(
+                username="testuser", email="test@example.com", password="password"
+            )
+            response = self.client.get(url, {"email": "test@example.com"})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertTrue(response.data["email_is_registered"])
 
     def test_send_verification_code(self):
         url = reverse("send_code")

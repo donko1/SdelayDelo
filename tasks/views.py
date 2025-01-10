@@ -4,11 +4,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+
 
 from django.contrib.auth import get_user_model
 from django.utils.timezone import now
-
+from django.conf import settings
 
 import uuid
 
@@ -34,6 +35,32 @@ def hello_world(request):
 @api_view(["GET"])
 @throttle_classes([AnonRateThrottle, UserRateThrottle])
 def check_if_email_registered(request):
+    """
+    Check if the provided email is registered in the system.
+
+    This function is intended **only** for testing and development purposes.
+    It allows quick verification of whether an email is registered in the database.
+
+    This endpoint is disabled in production environments (when DEBUG = False).
+
+    Arguments:
+    - `email` (str): The email address to check. This should be provided as a query parameter.
+
+    Returns:
+    - 200 OK: If the request is valid, the response contains a boolean indicating
+      whether the email is registered.
+    - 400 Bad Request: If the `email` parameter is missing.
+    - 403 Forbidden: If the endpoint is accessed in production.
+
+    Example usage:
+    ```
+    GET /api/check_if_email_registered?email=test@example.com
+    Response: { "email_is_registered": true }
+    ```
+
+    """
+    if not settings.DEBUG:
+        raise PermissionDenied("This endpoint is disabled in production.")
     email = request.query_params.get("email")
     if not email:
         return Response(
