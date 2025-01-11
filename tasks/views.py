@@ -249,6 +249,35 @@ def register_user(request):
         )
 
 
+@api_view(["POST"])
+@throttle_classes([UserRateThrottle, AnonRateThrottle])
+def login(request):
+    """
+    view to login by username and password
+    """
+    password = request.data.get("password")
+    username = request.data.get("username")
+
+    if not username or not password:
+        return Response({"detail": "U missed password or username"}, status=400)
+
+    user = User.objects.filter(username=username)[0]
+
+    if user.password != password:
+        return Response({"detail": "Not correct username or password"}, status=400)
+
+    else:
+        try:
+            access_token = Token.objects.get(user=user)
+
+        except Token.DoesNotExist:
+            access_token = Token.objects.create(user=user)
+        return Response(
+            {"access_token": access_token.key},
+            status=200,
+        )
+
+
 @api_view(["GET"])
 @throttle_classes([WhoAmIRateThrottle])
 def who_am_i(request):

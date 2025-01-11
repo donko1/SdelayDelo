@@ -558,6 +558,9 @@ class EmailVerificationTests(APITestCase):
         self.assertTrue(User.objects.filter(username="testuser").exists())
 
     def test_reset_password(self):
+        """
+        Tests if correct reset_password
+        """
         url = reverse("reset_password")
         token_obj = TokenToEmail.objects.create(
             email="test@example.com", is_verified=True
@@ -594,6 +597,30 @@ class EmailVerificationTests(APITestCase):
         self.assertEqual(
             User.objects.filter(username="testuser")[0].password, "testnewpassworD123"
         )
+
+    def test_login(self):
+        """
+        Test login with login view
+        """
+        url = reverse("login")
+        user = User.objects.create(username="testuser", password="testpassword123")
+
+        # Test incorrect password
+        response = self.client.post(
+            url, {"username": "testuser", "password": "incorrect_password"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test not full data
+        response = self.client.post(url, {"username": "testuser"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test correct user and password
+        response = self.client.post(
+            url, {"username": "testuser", "password": "testpassword123"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access_token", response.data)
 
 
 class WhoAmIViewTest(APITestCase):
