@@ -557,6 +557,44 @@ class EmailVerificationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(User.objects.filter(username="testuser").exists())
 
+    def test_reset_password(self):
+        url = reverse("reset_password")
+        token_obj = TokenToEmail.objects.create(
+            email="test@example.com", is_verified=True
+        )
+        User.objects.create(
+            email="test@example.com", username="testuser", password="qwerty123"
+        )
+        raw_token = str(uuid.uuid4())
+        token_obj.token_hash = TokenToEmail.hash_token(raw_token)
+        token_obj.save()
+
+        # Test missing token
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test invalid token
+        response = self.client.post(url, {"token": "invalid_token"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test expired token
+        token_obj.expires_at = now() - timedelta(days=1)
+        token_obj.save()
+        response = self.client.post(url, {"token": raw_token})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test valid token
+        token_obj.expires_at = now() + timedelta(days=1)
+        token_obj.save()
+        response = self.client.post(
+            url,
+            {"token": raw_token, "new_password": "testnewpassworD123"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            User.objects.filter(username="testuser")[0].password, "testnewpassworD123"
+        )
+
 
 class WhoAmIViewTest(APITestCase):
 

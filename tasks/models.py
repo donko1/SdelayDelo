@@ -83,7 +83,7 @@ class TokenToEmail(models.Model):
     - is_verified: A flag indicating whether the email has been successfully verified.
     """
 
-    email = models.EmailField(unique=True)
+    email = models.EmailField()
     code = models.CharField(max_length=6, editable=False)
     token_hash = models.CharField(max_length=64, editable=False, unique=True)
     salt = models.CharField(

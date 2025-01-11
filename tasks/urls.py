@@ -12,4 +12,5 @@ urlpatterns = [
     path("api/check_code/", views.verify_code, name="check_code"),
     path("api/register/", views.register_user, name="register"),
     path("api/whoami", views.who_am_i, name="whoami"),
+    path("api/reset_password", views.reset_password, name="reset_password"),
 ]

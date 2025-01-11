@@ -6,8 +6,9 @@ from rest_framework.authtoken.models import Token
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.exceptions import PermissionDenied
 
-
+from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.conf import settings
 
@@ -89,6 +90,7 @@ def send_verification_code(request):
             {"detail": "Verification code sent."}, status=status.HTTP_200_OK
         )
     except Exception as e:
+        print(e)
         return Response(
             {"detail": "An error occurred."}, status=status.HTTP_400_BAD_REQUEST
         )
@@ -132,6 +134,64 @@ def verify_code(request):
         return Response(
             {"detail": "No token found for this email."},
             status=status.HTTP_404_NOT_FOUND,
+        )
+
+
+@api_view(["POST"])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
+def reset_password(request):
+    """
+    Reset password using token
+    """
+
+    token = request.data.get("token")
+    password = request.data.get("new_password")
+
+    if not token:
+        return Response(
+            {"detail": "Registration token is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Find the token object
+        token_obj = TokenToEmail.objects.get(token_hash=TokenToEmail.hash_token(token))
+
+        # Ensure the token is verified and not expired
+        if not token_obj.is_verified:
+            return Response(
+                {"detail": "Email is not verified."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if token_obj.expires_at < now():
+            return Response(
+                {"detail": "Registration token has expired."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = User.objects.filter(email=token_obj.email)[0]
+        try:
+            if validate_password(password=password) is None:
+                user.password = password
+                user.save()
+                token_obj.delete()
+                return Response(
+                    {"detail": "new password had set"}, status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"detail": "password is not valid"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except ValidationError:
+            return Response(
+                {"detail": "password is not valid"}, status=status.HTTP_400_BAD_REQUEST
+            )
+    except TokenToEmail.DoesNotExist:
+        return Response(
+            {"detail": "Invalid registration token."},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
 
