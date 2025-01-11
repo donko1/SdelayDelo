@@ -49,6 +49,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "SdelayDelo.middlewares.ErrorTrackingMiddleware",
 ]
 
 ROOT_URLCONF = "SdelayDelo.urls"
@@ -70,6 +71,10 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "SdelayDelo.wsgi.application"
+
+ERROR_THRESHOLD = 10
+BAN_DURATION_MINUTES = 3 * 60
+ERROR_WINDOW_MINUTES = 10
 
 
 # Database
@@ -120,6 +125,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.TokenAuthentication",
@@ -129,7 +135,7 @@ REST_FRAMEWORK = {
 }
 
 
-if TESTING:
+if TESTING or DEBUG:
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
         "whoami": None,
         "anon": None,
