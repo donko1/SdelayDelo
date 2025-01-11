@@ -90,7 +90,7 @@ class TokenToEmail(models.Model):
         max_length=32, editable=False, default=get_random_string(32)
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField(default=timezone.now() + timedelta(days=1))
+    expires_at = models.DateTimeField(default=timezone.now() + timedelta(minutes=10))
     is_verified = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
