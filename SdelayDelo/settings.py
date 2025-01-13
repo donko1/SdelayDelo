@@ -76,6 +76,10 @@ ERROR_THRESHOLD = 10
 BAN_DURATION_MINUTES = 3 * 60
 ERROR_WINDOW_MINUTES = 10
 
+if TESTING:
+    ERROR_THRESHOLD = 100_000
+    BAN_DURATION_MINUTES = 0
+    ERROR_WINDOW_MINUTES = 100_000
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases

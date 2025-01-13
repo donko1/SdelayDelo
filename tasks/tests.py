@@ -468,6 +468,14 @@ class NoteSerializerTestCase(APITestCase):
 
 class EmailVerificationTests(APITestCase):
 
+    def setUp(self):
+        """
+        This view need not to get ban by too many requests after /SdelayDelo/tests.py tests
+        """
+        settings.ERROR_THRESHOLD = 100_000
+        settings.ERROR_WINDOW_MINUTES = 0
+        settings.BAN_DURATION_MINUTES = 100_000
+
     def test_check_if_email_registered(self):
         if settings.DEBUG:
             url = reverse("check_if_email_registered")
