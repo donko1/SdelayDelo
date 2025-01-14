@@ -257,12 +257,16 @@ def login(request):
     """
     password = request.data.get("password")
     username = request.data.get("username")
+    if not username:
+        email = request.data.get("email")
 
-    if not username or not password:
-        return Response({"detail": "U missed password or username"}, status=400)
+    if not password or (username is None and email is None):
+        return Response({"detail": "Ur data is not correct"}, status=400)
 
-    user = User.objects.filter(username=username)[0]
-
+    if username:
+        user = User.objects.filter(username=username)[0]
+    else:
+        user = User.objects.filter(email=email)[0]
     if user.password != password:
         return Response({"detail": "Not correct username or password"}, status=400)
 

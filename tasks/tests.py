@@ -630,6 +630,32 @@ class EmailVerificationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access_token", response.data)
 
+    def test_login_with_email(self):
+        """
+        Test login with email
+        """
+        url = reverse("login")
+        user = User.objects.create(
+            username="testuser", password="testpassword123", email="example@example.com"
+        )
+
+        # Test incorrect password
+        response = self.client.post(
+            url, {"email": "example@example.com", "password": "incorrect_password"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test not full data
+        response = self.client.post(url, {"email": "example@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test correct user and password
+        response = self.client.post(
+            url, {"email": "example@example.com", "password": "testpassword123"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access_token", response.data)
+
 
 class WhoAmIViewTest(APITestCase):
 
