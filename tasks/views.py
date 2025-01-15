@@ -23,6 +23,13 @@ from .throttles import WhoAmIRateThrottle
 User = get_user_model()
 
 
+def format_email(email):
+    """format email to fa2 login"""
+    email_1_part = email.split("@")[0]
+    email_1_part = email_1_part[0] + "*" * (len(email_1_part) - 2) + email_1_part[-1]
+    return email_1_part + "@" + email.split("@")[-1]
+
+
 @api_view(["GET"])
 def hello_world(request):
     """
@@ -319,7 +326,11 @@ def login(request):
     token = TokenToEmail.objects.create(email=email)
     token.send_verification_email()
     url_check_code = reverse("check_code")
-    return Response({"detail": f"Now visit {url_check_code} to continue"}, status=202)
+    email = format_email(email)
+    return Response(
+        {"detail": f"Now visit {url_check_code} to continue", "email": email},
+        status=202,
+    )
 
 
 @api_view(["GET"])

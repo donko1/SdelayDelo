@@ -684,6 +684,7 @@ class EmailVerificationTests(APITestCase):
         self.assertIn(
             f"Now visit {url_check_code} to continue", response.data["detail"]
         )
+        self.assertEqual(f"t**t@example.com", response.data["email"])
 
         response = self.client.post(
             check_token_url, {"email": "test@example.com", "token": raw_token}
