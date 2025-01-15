@@ -265,6 +265,7 @@ def login(request):
 
     if username:
         user = User.objects.filter(username=username)[0]
+        email = user.email
     else:
         user = User.objects.filter(email=email)[0]
 

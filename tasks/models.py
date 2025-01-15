@@ -15,7 +15,7 @@ from .validators import validate_hex_color
 
 
 class custom_user(AbstractUser):
-    telegram_id = models.CharField(max_length=255, unique=True, null=True)
+    telegram_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     fa_2 = models.BooleanField(default=False)
 
 
