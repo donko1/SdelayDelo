@@ -656,6 +656,42 @@ class EmailVerificationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access_token", response.data)
 
+    def test_login_with_2_fa(self):
+        """
+        Tests if correct login with 2fa
+        """
+        url = reverse("login")
+        url_check_code = reverse("check_code")
+        check_token_url = reverse("login")
+        token_obj = TokenToEmail.objects.create(
+            email="test@example.com", is_verified=True
+        )
+        User.objects.create(
+            email="test@example.com",
+            username="testuser",
+            password="qwerty123",
+            fa_2=True,
+        )
+        raw_token = str(uuid.uuid4())
+        token_obj.token_hash = TokenToEmail.hash_token(raw_token)
+        token_obj.save()
+
+        response = self.client.post(
+            url,
+            {"email": "test@example.com", "password": "qwerty123"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertIn(
+            f"Now visit {url_check_code} to continue", response.data["detail"]
+        )
+
+        response = self.client.post(
+            check_token_url, {"email": "test@example.com", "token": raw_token}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access_token", response.data)
+
 
 class WhoAmIViewTest(APITestCase):
 

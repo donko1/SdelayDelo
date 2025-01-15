@@ -8,6 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from django.urls import reverse
 from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.conf import settings
@@ -253,33 +254,71 @@ def register_user(request):
 @throttle_classes([UserRateThrottle, AnonRateThrottle])
 def login(request):
     """
-    view to login by username and password
+    view to login by username/email and password
     """
     password = request.data.get("password")
     username = request.data.get("username")
+    token = request.data.get("token")
+
     if not username:
         email = request.data.get("email")
-
-    if not password or (username is None and email is None):
-        return Response({"detail": "Ur data is not correct"}, status=400)
 
     if username:
         user = User.objects.filter(username=username)[0]
     else:
         user = User.objects.filter(email=email)[0]
+
+    if token:
+        token_obj = TokenToEmail.objects.get(token_hash=TokenToEmail.hash_token(token))
+        if not token_obj.is_verified:
+            return Response(
+                {"detail": "Email is not verified."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if token_obj.expires_at < now():
+            return Response(
+                {"detail": "Registration token has expired."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user_by_token = User.objects.filter(email=token_obj.email)[0]
+        if user_by_token == user:
+
+            try:
+                access_token = Token.objects.get(user=user)
+
+            except Token.DoesNotExist:
+                access_token = Token.objects.create(user=user)
+
+            return Response(
+                {"access_token": access_token.key}, status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {"detail": "token is not correct"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+    if not password or (username is None and email is None):
+        return Response({"detail": "Ur data is not correct"}, status=400)
+
     if user.password != password:
         return Response({"detail": "Not correct username or password"}, status=400)
 
-    else:
+    if not user.fa_2:
         try:
             access_token = Token.objects.get(user=user)
 
         except Token.DoesNotExist:
             access_token = Token.objects.create(user=user)
+
         return Response(
             {"access_token": access_token.key},
             status=200,
         )
+
+    token = TokenToEmail.objects.create(email=email)
+    token.send_verification_email()
+    url_check_code = reverse("check_code")
+    return Response({"detail": f"Now visit {url_check_code} to continue"}, status=202)
 
 
 @api_view(["GET"])
