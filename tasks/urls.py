@@ -1,5 +1,11 @@
-from django.urls import path
+from django.urls import path, include
+
+from rest_framework import routers
+
 from . import views
+
+router = routers.DefaultRouter()
+router.register(r"note", views.NoteViewSet, basename="note")
 
 urlpatterns = [
     path("hello_world/", views.hello_world, name="hello_world"),
@@ -14,4 +20,5 @@ urlpatterns = [
     path("api/whoami", views.who_am_i, name="whoami"),
     path("api/reset_password", views.reset_password, name="reset_password"),
     path("api/login", views.login, name="login"),
+    path("api/", include(router.urls)),
 ]

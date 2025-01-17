@@ -1,7 +1,7 @@
 from django.utils.timezone import now
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-
+from django.conf import settings
 
 from rest_framework import serializers
 
@@ -26,18 +26,21 @@ class NoteSerializer(serializers.ModelSerializer):
 
     tags = serializers.PrimaryKeyRelatedField(many=True, queryset=Tag.objects.all())
 
+    # if not settings.TESTING:
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
     class Meta:
         model = Note
         fields = [
             "id",
-            "user",
             "title",
             "description",
             "date_create",
             "date_changed",
             "tags",
+            "user",
         ]
-        read_only_field = ["user", "date_create"]
+        read_only_field = ["date_create", "date_changed"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):

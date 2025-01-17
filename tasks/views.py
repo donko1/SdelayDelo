@@ -1,12 +1,13 @@
 from rest_framework.decorators import api_view, throttle_classes, permission_classes
 from rest_framework.response import Response
-from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.exceptions import PermissionDenied
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.contrib.auth.password_validation import validate_password
@@ -15,8 +16,8 @@ from django.conf import settings
 
 import uuid
 
-from .models import TokenToEmail
-from .serializers import RegisterSerializer
+from .models import TokenToEmail, Note
+from .serializers import RegisterSerializer, NoteSerializer
 from .throttles import WhoAmIRateThrottle
 
 
@@ -312,11 +313,7 @@ def login(request):
         return Response({"detail": "Not correct username or password"}, status=400)
 
     if not user.fa_2:
-        try:
-            access_token = Token.objects.get(user=user)
-
-        except Token.DoesNotExist:
-            access_token = Token.objects.create(user=user)
+        access_token = Token.objects.get_or_create(user=user)[0]
 
         return Response(
             {"access_token": access_token.key},
@@ -347,3 +344,71 @@ def who_am_i(request):
             {"detail": "Authentication credentials were not provided."},
             status=status.HTTP_401_UNAUTHORIZED,
         )
+
+
+class NoteViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for the Note model.
+    Provides CRUD operations (Create, Retrieve, Update, Delete) for notes.
+    Only authenticated users can access this ViewSet.
+    Users can only view and modify their own notes.
+    Methods:
+        get_queryset(): Returns a queryset of notes that belong to the current user.
+        perform_create(serializer): Saves a new note, setting the owner to the current user.
+        perform_update(serializer): Updates an existing note, verifying that the current user is the owner.
+        perform_destroy(instance): Deletes a note, verifying that the current user is the owner.
+    """
+
+    serializer_class = NoteSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Returns a queryset of notes that belong to the current user.
+        """
+        user = self.request.user
+        return Note.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        """
+        Saves a new note, setting the owner to the current user.
+        """
+        try:
+            serializer.save(user=self.request.user)
+        except Exception as e:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_update(self, serializer):
+        """
+        Updates an existing note, verifying that the current user is the owner.
+        Raises PermissionDenied if the current user is not the owner.
+        """
+        try:
+            instance = self.get_object()
+            if instance.user != self.request.user:
+                raise PermissionDenied("You can't update this object, it is not yours!")
+            serializer.save()
+        except PermissionDenied as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ObjectDoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_destroy(self, instance):
+        """
+        Deletes a note, verifying that the current user is the owner.
+        Raises PermissionDenied if the current user is not the owner.
+        """
+        try:
+            if instance.user != self.request.user:
+                raise PermissionDenied("You can't delete this object, it is not yours!")
+            instance.delete()
+        except PermissionDenied as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ObjectDoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response(
+                {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
+            )

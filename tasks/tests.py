@@ -8,7 +8,7 @@ from django.utils.timezone import now, timedelta
 from django.conf import settings
 
 
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -361,8 +361,14 @@ class NoteSerializerTestCase(APITestCase):
         Creates a user, a tag, and note instances. Initializes valid and
         invalid note data.
         """
+        self.factory = APIRequestFactory()
         self.user = User.objects.create_user(
             username="testuser", password="password123"
+        )
+        self.access_token = Token.objects.create(user=self.user).key
+        self.header = {"Authorization": f"Token {self.access_token}"}
+        self.another_user = User.objects.create_user(
+            username="anotheruser", password="password123"
         )
         self.tag = Tag.objects.create(
             title="Test Tag", colour="#FF5733", user=self.user
@@ -371,7 +377,6 @@ class NoteSerializerTestCase(APITestCase):
             "title": "Test Note",
             "description": "This is a test note.",
             "tags": [self.tag.id],
-            "user": self.user.id,
         }
         self.invalid_note_data = {
             "title": "",
@@ -383,6 +388,13 @@ class NoteSerializerTestCase(APITestCase):
             description="An existing note description.",
         )
 
+    def get_serializer_context(self, user=None):
+        if not user:
+            user = self.user
+        request = self.factory.get("/", headers=self.header)
+        request.user = user
+        return {"request": request}
+
     def test_valid_note_serializer(self):
         """
         Test case for a valid note serializer.
@@ -390,7 +402,9 @@ class NoteSerializerTestCase(APITestCase):
         Ensures that the serializer successfully validates data and the
         validated data matches the input.
         """
-        serializer = NoteSerializer(data=self.valid_note_data)
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=self.valid_note_data
+        )
         serializer.is_valid(raise_exception=True)
         self.assertEqual(
             serializer.validated_data["title"], self.valid_note_data["title"]
@@ -407,7 +421,9 @@ class NoteSerializerTestCase(APITestCase):
         Ensures that the serializer raises a ValidationError when
         invalid data is provided.
         """
-        serializer = NoteSerializer(data=self.invalid_note_data)
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=self.invalid_note_data
+        )
         with self.assertRaises(ValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn("This field may not be blank.", str(context.exception))
@@ -424,7 +440,12 @@ class NoteSerializerTestCase(APITestCase):
             "description": "Updated description.",
         }
         old_date_changed = self.note.date_changed
-        serializer = NoteSerializer(instance=self.note, data=updated_data, partial=True)
+        serializer = NoteSerializer(
+            instance=self.note,
+            context=self.get_serializer_context(),
+            data=updated_data,
+            partial=True,
+        )
         serializer.is_valid(raise_exception=True)
         updated_note = serializer.save()
 
@@ -444,26 +465,196 @@ class NoteSerializerTestCase(APITestCase):
             "title": "Tagged Note",
             "description": "A note with tags.",
             "tags": [self.tag.id],
-            "user": self.user.id,
         }
-        serializer = NoteSerializer(data=data_with_tags)
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=data_with_tags
+        )
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
         self.assertEqual(validated_data["title"], data_with_tags["title"])
         self.assertEqual(validated_data["description"], data_with_tags["description"])
         self.assertIn(self.tag.id, [tag.id for tag in validated_data["tags"]])
 
-    def test_note_serializer_missing_title(self):
-        """
-        Test case for a note serializer with a missing title field.
+    def test_null_description(self):
+        """Test if description can be null or absent"""
+        data_with_null_description = {
+            "title": "Note with null description",
+            "tags": [self.tag.id],
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=data_with_null_description
+        )
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+        self.assertIn("This field is required.", str(context.exception))
 
-        Ensures that the serializer raises a ValidationError for
-        missing required fields.
-        """
-        data_missing_title = {"description": "No title provided."}
-        serializer = NoteSerializer(data=data_missing_title)
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("title", serializer.errors)
+        data_without_description = {
+            "title": "Note without description",
+            "tags": [self.tag.id],
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=data_without_description
+        )
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+        self.assertIn("This field is required.", str(context.exception))
+
+    def test_empty_tags(self):
+        """Test if note can be created without tags"""
+        data_without_tags = {
+            "title": "Note without tags",
+            "description": "Description of a note without tags",
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=data_without_tags
+        )
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+        self.assertIn("This field is required.", str(context.exception))
+
+    def test_invalid_tag_id(self):
+        """Test if note can not be created with invalid tag id"""
+        invalid_tag_data = {
+            "title": "Note with invalid tag",
+            "description": "Description with invalid tag",
+            "tags": [9999],
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=invalid_tag_data
+        )
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+        self.assertIn(
+            'Invalid pk "9999" - object does not exist.', str(context.exception)
+        )
+
+    def test_note_serializer_create(self):
+        """Test if create method works properly"""
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=self.valid_note_data
+        )
+        serializer.is_valid(raise_exception=True)
+        note = serializer.save()
+        self.assertEqual(note.title, self.valid_note_data["title"])
+        self.assertEqual(note.description, self.valid_note_data["description"])
+        self.assertEqual(note.user, self.user)
+        self.assertIn(self.tag, note.tags.all())
+
+    def test_note_serializer_update_with_tags(self):
+        """Test if update method works properly with tags"""
+        updated_data = {
+            "title": "Updated Note with tags",
+            "description": "Updated description with tags",
+            "tags": [],
+        }
+        tag_2 = Tag.objects.create(title="Test Tag 2", colour="#000000", user=self.user)
+        updated_data["tags"] = [tag_2.id]
+        serializer = NoteSerializer(
+            instance=self.note,
+            context=self.get_serializer_context(),
+            data=updated_data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_note = serializer.save()
+        self.assertIn(tag_2, updated_note.tags.all())
+
+    def test_read_only_fields(self):
+        """Test that read only fields cannot be updated"""
+        data = {"date_create": "2023-01-01"}
+        serializer = NoteSerializer(
+            instance=self.note,
+            context=self.get_serializer_context(self.another_user),
+            data=data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_note = serializer.save()
+        self.assertNotEqual(updated_note.date_create, data["date_create"])
+        self.assertEqual(updated_note.user, self.user)
+
+    def test_invalid_data_types(self):
+        """Test if serializer will throw error with invalid types of data"""
+        invalid_types_data = {
+            "title": "Invalid types data",
+            "description": "Description of invalid types data",
+            "tags": "invalid",
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=invalid_types_data
+        )
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+        self.assertIn(
+            'Expected a list of items but got type "str".', str(context.exception)
+        )
+
+    def test_many_tags(self):
+        """Test if serializer can create note with many tags"""
+        tags = []
+        for i in range(5):
+            tags.append(
+                Tag.objects.create(
+                    title=f"Test tag {i}", colour="#000000", user=self.user
+                )
+            )
+
+        valid_data_with_many_tags = {
+            "title": "Note with many tags",
+            "description": "Description of a note with many tags",
+            "tags": [tag.id for tag in tags],
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=valid_data_with_many_tags
+        )
+        serializer.is_valid(raise_exception=True)
+        self.assertEqual(len(serializer.validated_data["tags"]), 5)
+
+    def test_long_title(self):
+        """Test if serializer validates the length of title fields."""
+        long_title_data = {
+            "title": "A" * 300,
+            "description": "Test description",
+            "tags": [self.tag.id],
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=long_title_data
+        )
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+        self.assertIn(
+            "Ensure this field has no more than 255 characters.",
+            str(context.exception),
+        )
+        self.assertIn("max_length", str(serializer.errors))
+
+    def test_empty_title_with_blank_true(self):
+        """Test if serializer can create title with blank=True"""
+        if not NoteSerializer().fields["title"].allow_blank:
+            self.skipTest("Test can be skipped because title is not allow_blank")
+        empty_title_data = {
+            "title": "",
+            "description": "Description with empty title",
+            "tags": [self.tag.id],
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=empty_title_data
+        )
+        serializer.is_valid(raise_exception=True)
+        self.assertEqual(serializer.validated_data["title"], "")
+
+    def test_create_without_user_id(self):
+        """Test if user can create note without user_id"""
+        valid_data_without_user = {
+            "title": "Title without user",
+            "description": "Description without user",
+            "tags": [self.tag.id],
+        }
+        serializer = NoteSerializer(
+            context=self.get_serializer_context(), data=valid_data_without_user
+        )
+        serializer.is_valid(raise_exception=True)
+        self.assertEqual(serializer.validated_data["user"], self.user)
 
 
 class EmailVerificationTests(APITestCase):
@@ -748,3 +939,209 @@ class WhoAmIViewTest(APITestCase):
         response = self.client.get(self.whoami_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("detail", response.data)
+
+
+class NoteTestViewSet(APITestCase):
+    """
+    These tests are check note viewset is correctly working
+    """
+
+    def setUp(self):
+        """
+        Making headers to login as user
+        """
+        self.user = User.objects.create(
+            username="testuser", email="example@example.com", password="qwerty123"
+        )
+        self.access_token_user = Token.objects.create(user=self.user).key
+        self.header_user = {"Authorization": f"Token {self.access_token_user}"}
+
+        self.another_user = User.objects.create(
+            username="anotheruser", email="another@example.com", password="qwerty123"
+        )
+        self.access_token_another = Token.objects.create(user=self.another_user).key
+        self.header_another = {"Authorization": f"Token {self.access_token_another}"}
+
+        self.note_1_by_user_json = {
+            "title": "Note 1 by user",
+            "description": "desc 1",
+            "tags": [],
+        }
+        self.note_1_by_another_user_json = {
+            "title": "Note 1 by another user",
+            "description": "desc 1",
+            "tags": [],
+        }
+        self.note_2_by_user_json = {
+            "title": "Note 2 by user",
+            "description": "desc 2",
+            "tags": [],
+        }
+
+    def test_list(self):
+        """Tests if main page returns list of notes"""
+        url = reverse("note-list")
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_create(self):
+        """Tests if correctly create"""
+        url = reverse("note-list")
+        response = self.client.post(
+            url, headers=self.header_user, data=self.note_1_by_user_json
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("Note 1", response.data["title"])
+
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Note 1", response.data[0]["title"])
+
+    def test_change(self):
+        """Tests if changes are correctly working"""
+        url1 = reverse("note-list")
+        url2 = url1 + "1/"
+        self.client.post(url1, headers=self.header_user, data=self.note_1_by_user_json)
+
+        response = self.client.patch(
+            url2, data={"title": "New title"}, headers=self.header_user
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(url1, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("New title", response.data[0]["title"])
+
+    def test_delete(self):
+        """Tests if deleting is working correct"""
+        url = reverse("note-list")
+        self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
+
+        response = self.client.delete(url + "1/", headers=self.header_user)
+
+        self.assertEqual(response.status_code, 204)
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_list_both_users_notes(self):
+        """Tests if both users see only own notes"""
+        url = reverse("note-list")
+        # user create
+        self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
+        # another user create
+        self.client.post(
+            url, headers=self.header_another, data=self.note_1_by_another_user_json
+        )
+
+        # user get list of his notes
+        response_user = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response_user.status_code, 200)
+        self.assertEqual(len(response_user.data), 1)
+        self.assertIn("Note 1 by user", response_user.data[0]["title"])
+
+        # another user get list of his notes
+        response_another = self.client.get(url, headers=self.header_another)
+        self.assertEqual(response_another.status_code, 200)
+        self.assertEqual(len(response_another.data), 1)
+        self.assertIn("Note 1 by another user", response_another.data[0]["title"])
+
+    def test_create_both_users(self):
+        """Tests if correctly create for both users"""
+        url = reverse("note-list")
+        # user create
+        response_user = self.client.post(
+            url, headers=self.header_user, data=self.note_1_by_user_json
+        )
+        self.assertEqual(response_user.status_code, 201)
+        self.assertIn("Note 1 by user", response_user.data["title"])
+
+        # another user create
+        response_another = self.client.post(
+            url, headers=self.header_another, data=self.note_1_by_another_user_json
+        )
+        self.assertEqual(response_another.status_code, 201)
+        self.assertIn("Note 1 by another user", response_another.data["title"])
+
+    def test_change_both_users(self):
+        """Tests if both users can change their own note"""
+        url1 = reverse("note-list")
+        # user create
+        self.client.post(url1, headers=self.header_user, data=self.note_1_by_user_json)
+        # another user create
+        self.client.post(
+            url1, headers=self.header_another, data=self.note_1_by_another_user_json
+        )
+
+        # user change his note
+        response_user = self.client.patch(
+            url1 + "1/", data={"title": "New title by user"}, headers=self.header_user
+        )
+        self.assertEqual(response_user.status_code, 200)
+        response_user_get = self.client.get(url1, headers=self.header_user)
+        self.assertIn("New title by user", response_user_get.data[0]["title"])
+
+        # another user change his note
+        response_another = self.client.patch(
+            url1 + "2/",
+            data={"title": "New title by another user"},
+            headers=self.header_another,
+        )
+        self.assertEqual(response_another.status_code, 200)
+        response_another_get = self.client.get(url1, headers=self.header_another)
+        self.assertIn(
+            "New title by another user", response_another_get.data[0]["title"]
+        )
+
+    def test_delete_both_users(self):
+        """Tests if both users can delete own note"""
+        url = reverse("note-list")
+        # user create
+        self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
+        # another user create
+        self.client.post(
+            url, headers=self.header_another, data=self.note_1_by_another_user_json
+        )
+
+        # user delete his note
+        response_user_delete = self.client.delete(url + "1/", headers=self.header_user)
+        self.assertEqual(response_user_delete.status_code, 204)
+        response_user_get = self.client.get(url, headers=self.header_user)
+        self.assertEqual(len(response_user_get.data), 0)
+
+        # another user delete his note
+        response_another_delete = self.client.delete(
+            url + "2/", headers=self.header_another
+        )
+        self.assertEqual(response_another_delete.status_code, 204)
+        response_another_get = self.client.get(url, headers=self.header_another)
+        self.assertEqual(len(response_another_get.data), 0)
+
+    def test_user_cannot_change_another_user_note(self):
+        """Tests if user cant change another user's note"""
+        url = reverse("note-list")
+        # another user create note
+        self.client.post(
+            url, headers=self.header_another, data=self.note_1_by_another_user_json
+        )
+        # user try change another user note
+        response = self.client.patch(
+            url + "1/", data={"title": "Try to change"}, headers=self.header_user
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_user_cannot_delete_another_user_note(self):
+        """Tests if user cant delete another user's note"""
+        url = reverse("note-list")
+        # another user create note
+        self.client.post(
+            url, headers=self.header_another, data=self.note_1_by_another_user_json
+        )
+        # user try delete another user note
+        response = self.client.delete(url + "1/", headers=self.header_user)
+        self.assertEqual(response.status_code, 404)
