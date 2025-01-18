@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view, throttle_classes, permission_classes
+from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.conf import settings
@@ -179,23 +180,30 @@ def reset_password(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = User.objects.filter(email=token_obj.email)[0]
+        user = User.objects.filter(email=token_obj.email).first()
+
+        if not user:
+            return Response(
+                {"detail": "User with this email was not found."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             if validate_password(password=password) is None:
-                user.password = password
+                user.password = make_password(password)  # Хешируем пароль
                 user.save()
                 token_obj.delete()
                 return Response(
-                    {"detail": "new password had set"}, status=status.HTTP_200_OK
+                    {"detail": "New password has been set"}, status=status.HTTP_200_OK
                 )
             else:
                 return Response(
-                    {"detail": "password is not valid"},
+                    {"detail": "Password is not valid"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         except ValidationError:
             return Response(
-                {"detail": "password is not valid"}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Password is not valid"}, status=status.HTTP_400_BAD_REQUEST
             )
     except TokenToEmail.DoesNotExist:
         return Response(
@@ -309,7 +317,7 @@ def login(request):
     if not password or (username is None and email is None):
         return Response({"detail": "Ur data is not correct"}, status=400)
 
-    if user.password != password:
+    if not check_password(password, user.password):
         return Response({"detail": "Not correct username or password"}, status=400)
 
     if not user.fa_2:

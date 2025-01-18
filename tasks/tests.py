@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import check_password, make_password
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -793,8 +794,11 @@ class EmailVerificationTests(APITestCase):
             {"token": raw_token, "new_password": "testnewpassworD123"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            User.objects.filter(username="testuser")[0].password, "testnewpassworD123"
+        self.assertTrue(
+            check_password(
+                "testnewpassworD123",
+                User.objects.filter(username="testuser")[0].password,
+            )
         )
 
     def test_login(self):
@@ -802,7 +806,10 @@ class EmailVerificationTests(APITestCase):
         Test login with login view
         """
         url = reverse("login")
-        user = User.objects.create(username="testuser", password="testpassword123")
+        password = "testpassword123"
+        hashed_password = make_password(password)
+
+        user = User.objects.create(username="testuser", password=hashed_password)
 
         # Test incorrect password
         response = self.client.post(
@@ -815,9 +822,7 @@ class EmailVerificationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Test correct user and password
-        response = self.client.post(
-            url, {"username": "testuser", "password": "testpassword123"}
-        )
+        response = self.client.post(url, {"username": "testuser", "password": password})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access_token", response.data)
 
@@ -826,8 +831,11 @@ class EmailVerificationTests(APITestCase):
         Test login with email
         """
         url = reverse("login")
+        password = "testpassword123"
+        hashed_password = make_password(password)
+
         user = User.objects.create(
-            username="testuser", password="testpassword123", email="example@example.com"
+            username="testuser", password=hashed_password, email="example@example.com"
         )
 
         # Test incorrect password
@@ -842,7 +850,7 @@ class EmailVerificationTests(APITestCase):
 
         # Test correct user and password
         response = self.client.post(
-            url, {"email": "example@example.com", "password": "testpassword123"}
+            url, {"email": "example@example.com", "password": password}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access_token", response.data)
@@ -857,10 +865,14 @@ class EmailVerificationTests(APITestCase):
         token_obj = TokenToEmail.objects.create(
             email="test@example.com", is_verified=True
         )
+
+        password = "qwerty123"
+        hashed_password = make_password(password)
+
         User.objects.create(
             email="test@example.com",
             username="testuser",
-            password="qwerty123",
+            password=hashed_password,
             fa_2=True,
         )
         raw_token = str(uuid.uuid4())
@@ -869,7 +881,7 @@ class EmailVerificationTests(APITestCase):
 
         response = self.client.post(
             url,
-            {"email": "test@example.com", "password": "qwerty123"},
+            {"email": "test@example.com", "password": password},
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertIn(
