@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 TESTING = sys.argv[1:2] == ["test"]
 
@@ -135,7 +135,13 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
-    "DEFAULT_THROTTLE_RATES": {"anon": "4/m", "user": "10/m", "whoami": "3/m"},
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "4/m",
+        "user": "10/m",
+        "whoami": "3/m",
+        "note_and_tag_read": "300/m",
+        "note_and_tag_write": "30/m",
+    },
 }
 
 
@@ -144,6 +150,8 @@ if TESTING or DEBUG:
         "whoami": None,
         "anon": None,
         "user": None,
+        "note_and_tag_read": None,
+        "note_and_tag_write": None,
     }
 
 

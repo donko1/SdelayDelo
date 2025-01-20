@@ -19,7 +19,11 @@ import uuid
 
 from .models import TokenToEmail, Note
 from .serializers import RegisterSerializer, NoteSerializer
-from .throttles import WhoAmIRateThrottle
+from .throttles import (
+    WhoAmIRateThrottle,
+    NoteAndTagThrottleRead,
+    NoteAndTagThrottleWrite,
+)
 
 
 User = get_user_model()
@@ -369,6 +373,7 @@ class NoteViewSet(viewsets.ModelViewSet):
 
     serializer_class = NoteSerializer
     permission_classes = [IsAuthenticated]
+    throttle_classes = [NoteAndTagThrottleRead, NoteAndTagThrottleWrite]
 
     def get_queryset(self):
         """

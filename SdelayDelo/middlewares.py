@@ -30,7 +30,7 @@ class ErrorTrackingMiddleware:
 
         # Process the request and log errors if necessary
         response = self.get_response(request)
-        if response.status_code >= 400:
+        if response.status_code >= 400 and response.status_code != 404:
             self.log_error(ip_address, current_time)
         return response
 
