@@ -267,7 +267,7 @@ class TagSerializerTestCase(APITestCase):
     Test case for the TagSerializer.
 
     This class contains tests for validating and ensuring the correctness of
-    the TagSerializer.
+    the TagSerializer, which now gets the user from the request context.
     """
 
     def setUp(self):
@@ -276,6 +276,7 @@ class TagSerializerTestCase(APITestCase):
 
         Creates a user instance and initializes valid and invalid tag data.
         """
+        self.factory = APIRequestFactory()
         self.user = User.objects.create_user(
             username="testuser", password="password123"
         )
@@ -283,7 +284,6 @@ class TagSerializerTestCase(APITestCase):
             "title": "Test Tag",
             "colour": "#FFFFFF",
             "icon": "icon.png",
-            "user": self.user.id,
         }
         self.invalid_tag_data = {
             "title": "Test Tag",
@@ -295,9 +295,15 @@ class TagSerializerTestCase(APITestCase):
         Test case for a valid tag serializer.
 
         Ensures that the serializer successfully validates data and the
-        validated data matches the input.
+        validated data matches the input. Also checks if user is added correctly from the request
         """
-        serializer = TagSerializer(data=self.valid_tag_data)
+        request = self.factory.post(
+            reverse("tag-list"), data=self.valid_tag_data, format="json"
+        )
+        request.user = self.user
+        serializer = TagSerializer(
+            data=self.valid_tag_data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         self.assertEqual(
             serializer.validated_data["title"], self.valid_tag_data["title"]
@@ -313,7 +319,13 @@ class TagSerializerTestCase(APITestCase):
 
         Ensures that the serializer identifies invalid data as not valid.
         """
-        serializer = TagSerializer(data=self.invalid_tag_data)
+        request = self.factory.post(
+            reverse("tag-list"), data=self.invalid_tag_data, format="json"
+        )
+        request.user = self.user
+        serializer = TagSerializer(
+            data=self.invalid_tag_data, context={"request": request}
+        )
         self.assertFalse(serializer.is_valid())
 
     def test_tag_serializer_missing_fields(self):
@@ -324,7 +336,11 @@ class TagSerializerTestCase(APITestCase):
         fields are missing.
         """
         incomplete_data = {"title": "Incomplete Tag"}
-        serializer = TagSerializer(data=incomplete_data)
+        request = self.factory.post(
+            reverse("tag-list"), data=incomplete_data, format="json"
+        )
+        request.user = self.user
+        serializer = TagSerializer(data=incomplete_data, context={"request": request})
         self.assertFalse(serializer.is_valid())
         self.assertIn("colour", serializer.errors)
 
@@ -332,16 +348,20 @@ class TagSerializerTestCase(APITestCase):
         """
         The serializer should accept a valid HEX color.
         """
-        data = {"title": "Test Tag", "colour": "#123ABC", "user": self.user.id}
-        serializer = TagSerializer(data=data)
+        data = {"title": "Test Tag", "colour": "#123ABC"}
+        request = self.factory.post(reverse("tag-list"), data=data, format="json")
+        request.user = self.user
+        serializer = TagSerializer(data=data, context={"request": request})
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
     def test_invalid_hex_color(self):
         """
         The serializer should reject an invalid HEX color.
         """
-        data = {"title": "Test Tag", "colour": "123ABC", "user": self.user.id}
-        serializer = TagSerializer(data=data)
+        data = {"title": "Test Tag", "colour": "123ABC"}
+        request = self.factory.post(reverse("tag-list"), data=data, format="json")
+        request.user = self.user
+        serializer = TagSerializer(data=data, context={"request": request})
         self.assertFalse(serializer.is_valid())
         self.assertIn("colour", serializer.errors)
         self.assertEqual(serializer.errors["colour"][0], "Invalid HEX color code.")
@@ -1153,6 +1173,202 @@ class NoteTestViewSet(APITestCase):
         # another user create note
         self.client.post(
             url, headers=self.header_another, data=self.note_1_by_another_user_json
+        )
+        # user try delete another user note
+        response = self.client.delete(url + "1/", headers=self.header_user)
+        self.assertEqual(response.status_code, 404)
+
+
+class TagTestViewSet(APITestCase):
+    """
+    These tests are check note viewset is correctly working
+    """
+
+    def setUp(self):
+        """
+        Making headers to login as user
+        """
+        self.user = User.objects.create(
+            username="testuser", email="example@example.com", password="qwerty123"
+        )
+        self.access_token_user = Token.objects.create(user=self.user).key
+        self.header_user = {"Authorization": f"Token {self.access_token_user}"}
+
+        self.another_user = User.objects.create(
+            username="anotheruser", email="another@example.com", password="qwerty123"
+        )
+        self.access_token_another = Token.objects.create(user=self.another_user).key
+        self.header_another = {"Authorization": f"Token {self.access_token_another}"}
+
+        self.tag_1_by_user_json = {"title": "Tag 1 by user", "colour": "#FF0000"}
+        self.tag_1_by_another_user_json = {
+            "title": "Tag 1 by another user",
+            "colour": "#FF0000",
+        }
+
+    def test_list(self):
+        """Tests if main page returns list of notes"""
+        url = reverse("tag-list")
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_create(self):
+        """Tests if correctly create"""
+        url = reverse("tag-list")
+        response = self.client.post(
+            url, headers=self.header_user, data=self.tag_1_by_user_json
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("Tag 1", response.data["title"])
+
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Tag 1", response.data[0]["title"])
+
+    def test_change(self):
+        """Tests if changes are correctly working"""
+        url1 = reverse("tag-list")
+        url2 = url1 + "1/"
+        self.client.post(url1, headers=self.header_user, data=self.tag_1_by_user_json)
+
+        response = self.client.patch(
+            url2, data={"title": "New title"}, headers=self.header_user
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(url1, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("New title", response.data[0]["title"])
+
+    def test_delete(self):
+        """Tests if deleting is working correct"""
+        url = reverse("tag-list")
+        self.client.post(url, headers=self.header_user, data=self.tag_1_by_user_json)
+
+        response = self.client.delete(url + "1/", headers=self.header_user)
+
+        self.assertEqual(response.status_code, 204)
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_list_both_users_notes(self):
+        """Tests if both users see only own notes"""
+        url = reverse("tag-list")
+        # user create
+        self.client.post(url, headers=self.header_user, data=self.tag_1_by_user_json)
+        # another user create
+        self.client.post(
+            url, headers=self.header_another, data=self.tag_1_by_another_user_json
+        )
+
+        # user get list of his notes
+        response_user = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response_user.status_code, 200)
+        self.assertEqual(len(response_user.data), 1)
+        self.assertIn("Tag 1 by user", response_user.data[0]["title"])
+
+        # another user get list of his notes
+        response_another = self.client.get(url, headers=self.header_another)
+        self.assertEqual(response_another.status_code, 200)
+        self.assertEqual(len(response_another.data), 1)
+        self.assertIn("Tag 1 by another user", response_another.data[0]["title"])
+
+    def test_create_both_users(self):
+        """Tests if correctly create for both users"""
+        url = reverse("tag-list")
+        # user create
+        response_user = self.client.post(
+            url, headers=self.header_user, data=self.tag_1_by_user_json
+        )
+        self.assertEqual(response_user.status_code, 201)
+        self.assertIn("Tag 1 by user", response_user.data["title"])
+
+        # another user create
+        response_another = self.client.post(
+            url, headers=self.header_another, data=self.tag_1_by_another_user_json
+        )
+        self.assertEqual(response_another.status_code, 201)
+        self.assertIn("Tag 1 by another user", response_another.data["title"])
+
+    def test_change_both_users(self):
+        """Tests if both users can change their own note"""
+        url1 = reverse("tag-list")
+        # user create
+        self.client.post(url1, headers=self.header_user, data=self.tag_1_by_user_json)
+        # another user create
+        self.client.post(
+            url1, headers=self.header_another, data=self.tag_1_by_another_user_json
+        )
+
+        # user change his note
+        response_user = self.client.patch(
+            url1 + "1/", data={"title": "New title by user"}, headers=self.header_user
+        )
+        self.assertEqual(response_user.status_code, 200)
+        response_user_get = self.client.get(url1, headers=self.header_user)
+        self.assertIn("New title by user", response_user_get.data[0]["title"])
+
+        # another user change his note
+        response_another = self.client.patch(
+            url1 + "2/",
+            data={"title": "New title by another user"},
+            headers=self.header_another,
+        )
+        self.assertEqual(response_another.status_code, 200)
+        response_another_get = self.client.get(url1, headers=self.header_another)
+        self.assertIn(
+            "New title by another user", response_another_get.data[0]["title"]
+        )
+
+    def test_delete_both_users(self):
+        """Tests if both users can delete own note"""
+        url = reverse("tag-list")
+        # user create
+        self.client.post(url, headers=self.header_user, data=self.tag_1_by_user_json)
+        # another user create
+        self.client.post(
+            url, headers=self.header_another, data=self.tag_1_by_another_user_json
+        )
+
+        # user delete his note
+        response_user_delete = self.client.delete(url + "1/", headers=self.header_user)
+        self.assertEqual(response_user_delete.status_code, 204)
+        response_user_get = self.client.get(url, headers=self.header_user)
+        self.assertEqual(len(response_user_get.data), 0)
+
+        # another user delete his note
+        response_another_delete = self.client.delete(
+            url + "2/", headers=self.header_another
+        )
+        self.assertEqual(response_another_delete.status_code, 204)
+        response_another_get = self.client.get(url, headers=self.header_another)
+        self.assertEqual(len(response_another_get.data), 0)
+
+    def test_user_cannot_change_another_user_note(self):
+        """Tests if user cant change another user's note"""
+        url = reverse("tag-list")
+        # another user create note
+        self.client.post(
+            url, headers=self.header_another, data=self.tag_1_by_another_user_json
+        )
+        # user try change another user note
+        response = self.client.patch(
+            url + "1/", data={"title": "Try to change"}, headers=self.header_user
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_user_cannot_delete_another_user_note(self):
+        """Tests if user cant delete another user's note"""
+        url = reverse("tag-list")
+        # another user create note
+        self.client.post(
+            url, headers=self.header_another, data=self.tag_1_by_another_user_json
         )
         # user try delete another user note
         response = self.client.delete(url + "1/", headers=self.header_user)

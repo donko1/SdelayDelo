@@ -6,6 +6,7 @@ from . import views
 
 router = routers.DefaultRouter()
 router.register(r"note", views.NoteViewSet, basename="note")
+router.register(r"tag", views.TagViewSet, basename="tag")
 
 urlpatterns = [
     path("hello_world/", views.hello_world, name="hello_world"),

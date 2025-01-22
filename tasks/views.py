@@ -17,8 +17,8 @@ from django.conf import settings
 
 import uuid
 
-from .models import TokenToEmail, Note
-from .serializers import RegisterSerializer, NoteSerializer
+from .models import TokenToEmail, Note, Tag
+from .serializers import RegisterSerializer, NoteSerializer, TagSerializer
 from .throttles import (
     WhoAmIRateThrottle,
     NoteAndTagThrottleRead,
@@ -411,6 +411,75 @@ class NoteViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         """
         Deletes a note, verifying that the current user is the owner.
+        Raises PermissionDenied if the current user is not the owner.
+        """
+        try:
+            if instance.user != self.request.user:
+                raise PermissionDenied("You can't delete this object, it is not yours!")
+            instance.delete()
+        except PermissionDenied as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ObjectDoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response(
+                {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for the Tag model.
+    Provides CRUD operations (Create, Retrieve, Update, Delete) for tags.
+    Only authenticated users can access this ViewSet.
+    Users can only view and modify their own tags.
+    Methods:
+        get_queryset(): Returns a queryset of tags that belong to the current user.
+        perform_create(serializer): Saves a new tag, setting the owner to the current user.
+        perform_update(serializer): Updates an existing tag, verifying that the current user is the owner.
+        perform_destroy(instance): Deletes a tag, verifying that the current user is the owner.
+    """
+
+    serializer_class = TagSerializer
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [NoteAndTagThrottleRead, NoteAndTagThrottleWrite]
+
+    def get_queryset(self):
+        """
+        Returns a queryset of tags that belong to the current user.
+        """
+        user = self.request.user
+        return Tag.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        """
+        Saves a new tag, setting the owner to the current user.
+        """
+        try:
+            serializer.save(user=self.request.user)
+        except Exception as e:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_update(self, serializer):
+        """
+        Updates an existing tag, verifying that the current user is the owner.
+        Raises PermissionDenied if the current user is not the owner.
+        """
+        try:
+            instance = self.get_object()
+            if instance.user != self.request.user:
+                raise PermissionDenied("You can't update this object, it is not yours!")
+            serializer.save()
+        except PermissionDenied as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ObjectDoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_destroy(self, instance):
+        """
+        Deletes a tag, verifying that the current user is the owner.
         Raises PermissionDenied if the current user is not the owner.
         """
         try:

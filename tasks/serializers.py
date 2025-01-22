@@ -87,6 +87,8 @@ class TagSerializer(serializers.ModelSerializer):
     - icon: Optional icon for the tag.
     """
 
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
     class Meta:
         model = Tag
         fields = ["id", "title", "user", "colour", "icon"]
