@@ -1373,3 +1373,134 @@ class TagTestViewSet(APITestCase):
         # user try delete another user note
         response = self.client.delete(url + "1/", headers=self.header_user)
         self.assertEqual(response.status_code, 404)
+
+
+class TestUpdateUserInfo(APITestCase):
+    """
+    Tests if currently changing fa2_status, telegram id, etc.
+    """
+
+    def setUp(self):
+        self.user_without_telegram_id = (
+            User.objects.create_user(  # Use create_user for passwords
+                username="user1", email="example1@example.com", password="password1"
+            )
+        )
+        self.user_without_telegram_id.fa_2 = False  # Initialize fa_2
+        self.user_without_telegram_id.save()
+
+        self.access_token_user1 = Token.objects.create(
+            user=self.user_without_telegram_id
+        ).key
+        self.header_user1 = {"Authorization": f"Token {self.access_token_user1}"}
+
+        self.user_with_telegram_id = (
+            User.objects.create_user(  # Use create_user for passwords
+                username="user2", email="example2@example.com", password="password2"
+            )
+        )
+        self.user_with_telegram_id.telegram_id = "123456"
+        self.user_with_telegram_id.fa_2 = False  # Initialize fa_2
+        self.user_with_telegram_id.save()
+
+        self.access_token_user2 = Token.objects.create(
+            user=self.user_with_telegram_id
+        ).key
+        self.header_user2 = {"Authorization": f"Token {self.access_token_user2}"}
+
+    def test_currently_display_in_whoami(self):
+        """
+        Just retests whoami
+        """
+        url = reverse("whoami")
+
+        request = self.client.get(url, headers=self.header_user1)
+        self.assertEqual(request.status_code, 200)
+        self.assertIsNone(
+            request.data["user"].get("telegram_id")
+        )  # Use .get() to avoid KeyError
+        self.assertFalse(
+            request.data["user"].get("fa_2")
+        )  # Use .get() to avoid KeyError
+
+        request = self.client.get(url, headers=self.header_user2)
+        self.assertEqual(request.status_code, 200)
+        self.assertEqual(
+            request.data["user"].get("telegram_id"),
+            self.user_with_telegram_id.telegram_id,
+        )  # Use .get()
+        self.assertFalse(request.data["user"].get("fa_2"))  # Use .get()
+
+    def test_changing_telegram_id(self):
+        """
+        Test if changing telegram_id is currently working
+        """
+        whoami = reverse("whoami")
+        url = reverse("change-userinfo")
+
+        # Change telegram_id for user1
+        data = {"telegram_id": "abcde"}
+        request = self.client.patch(
+            url, data, headers=self.header_user1, format="json"
+        )  # added format='json'
+        self.assertEqual(request.status_code, 200)
+
+        # Retrieve updated user info
+        request = self.client.get(whoami, headers=self.header_user1)
+        self.assertEqual(request.status_code, 200)
+        self.assertEqual(request.data["user"]["telegram_id"], "abcde")
+
+        # Fetch user1 from the database to verify the change persisted
+        updated_user1 = User.objects.get(username="user1")
+        self.assertEqual(updated_user1.telegram_id, "abcde")
+
+        # Change telegram_id to None for user2
+        data = {"telegram_id": None}
+        request = self.client.patch(
+            url, data, headers=self.header_user2, format="json"
+        )  # added format='json'
+        self.assertEqual(request.status_code, 200)
+
+        # Retrieve updated user info
+        request = self.client.get(whoami, headers=self.header_user2)
+        self.assertEqual(request.status_code, 200)
+        self.assertIsNone(request.data["user"]["telegram_id"])
+
+        # Fetch user2 from the database to verify the change persisted
+        updated_user2 = User.objects.get(username="user2")
+        self.assertIsNone(updated_user2.telegram_id)
+
+    def test_changing_fa_2(self):
+        """
+        Test if changing fa_2 is currently working
+        """
+        whoami = reverse("whoami")
+        url = reverse("change-userinfo")
+
+        # Change fa_2 to True for user1
+        data = {"fa_2": True}
+        request = self.client.patch(url, data, headers=self.header_user1, format="json")
+        self.assertEqual(request.status_code, 200)
+
+        # Retrieve updated user info
+        request = self.client.get(whoami, headers=self.header_user1)
+        self.assertEqual(request.status_code, 200)
+        self.assertTrue(request.data["user"]["fa_2"])
+
+        # Fetch user1 from the database to verify the change persisted
+        updated_user1 = User.objects.get(username="user1")
+        self.assertTrue(updated_user1.fa_2)
+
+        # Change fa_2 to False for user2
+        data = {"fa_2": False}
+        request = self.client.patch(url, data, headers=self.header_user2, format="json")
+        self.assertEqual(request.status_code, 200)
+
+        # Retrieve updated user info
+        request = self.client.get(whoami, headers=self.header_user2)
+        self.assertEqual(request.status_code, 200)
+        self.assertFalse(request.data["user"]["fa_2"])
+
+        # Fetch user2 from the database to verify the change persisted
+        updated_user2 = User.objects.get(username="user2")
+        self.assertFalse(updated_user2.fa_2)

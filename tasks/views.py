@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view, throttle_classes
+from rest_framework.decorators import api_view, throttle_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -18,7 +18,12 @@ from django.conf import settings
 import uuid
 
 from .models import TokenToEmail, Note, Tag
-from .serializers import RegisterSerializer, NoteSerializer, TagSerializer
+from .serializers import (
+    RegisterSerializer,
+    NoteSerializer,
+    TagSerializer,
+    UserUpdateSerializer,
+)
 from .throttles import (
     WhoAmIRateThrottle,
     NoteAndTagThrottleRead,
@@ -270,6 +275,29 @@ def register_user(request):
         )
 
 
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([UserRateThrottle, AnonRateThrottle])
+def change_userinfo(request) -> Response:
+    """
+    Updates user info (telegram_id, fa_2).  Accepts PATCH requests.
+    """
+    user = request.user  # Get the authenticated user
+
+    serializer = UserUpdateSerializer(
+        instance=user, data=request.data, partial=True
+    )  # partial=True allows partial updates
+
+    if serializer.is_valid():
+        serializer.save()  # Calls the `update` method in the serializer
+        return Response(
+            {"detail": "User information updated successfully."},
+            status=status.HTTP_200_OK,
+        )
+    else:
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(["POST"])
 @throttle_classes([UserRateThrottle, AnonRateThrottle])
 def login(request):
@@ -345,10 +373,17 @@ def login(request):
 @api_view(["GET"])
 @throttle_classes([WhoAmIRateThrottle])
 def who_am_i(request):
-
+    user = request.user
     if request.user.is_authenticated:
         return Response(
-            {"user": {"email": request.user.email, "username": request.user.username}},
+            {
+                "user": {
+                    "email": user.email,
+                    "username": user.username,
+                    "telegram_id": user.telegram_id,
+                    "fa_2": user.fa_2,
+                }
+            },
             status=status.HTTP_200_OK,
         )
     else:

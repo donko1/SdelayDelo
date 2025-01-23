@@ -110,3 +110,31 @@ class TagSerializer(serializers.ModelSerializer):
         if not is_hex_color(value):
             raise serializers.ValidationError("Invalid HEX color code.")
         return value
+
+
+class UserUpdateSerializer(
+    serializers.Serializer
+):  # Use Serializer, not ModelSerializer
+    """
+    Serializer used in change-userinfo to change user info
+    """
+
+    telegram_id = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+    fa_2 = serializers.BooleanField(
+        required=False, allow_null=True
+    )  # Adjust Field based on data type
+
+    def update(self, instance, validated_data: dict):
+        """
+        Update and return an existing `User` instance, given the validated data.
+        """
+        instance.telegram_id = validated_data.get(
+            "telegram_id", instance.telegram_id
+        )  # Use instance value if not provided
+        instance.fa_2 = validated_data.get(
+            "fa_2", instance.fa_2
+        )  # Use instance value if not provided
+        instance.save()
+        return instance

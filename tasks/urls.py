@@ -21,5 +21,6 @@ urlpatterns = [
     path("api/whoami", views.who_am_i, name="whoami"),
     path("api/reset_password", views.reset_password, name="reset_password"),
     path("api/login", views.login, name="login"),
+    path("api/change-userinfo/", views.change_userinfo, name="change-userinfo"),
     path("api/", include(router.urls)),
 ]
