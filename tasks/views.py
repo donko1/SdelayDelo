@@ -1,4 +1,9 @@
-from rest_framework.decorators import api_view, throttle_classes, permission_classes
+from rest_framework.decorators import (
+    api_view,
+    throttle_classes,
+    permission_classes,
+    action,
+)
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -14,6 +19,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.conf import settings
+from django.db.models import Q
 
 import uuid
 
@@ -460,6 +466,28 @@ class NoteViewSet(viewsets.ModelViewSet):
             return Response(
                 {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=False, methods=["get"], url_path="search")
+    def search(self, request):
+        """
+        Searches for notes based on the query string.
+        The search is performed on the title and content fields.
+        Returns a list of notes that match the query.
+        """
+        query = request.query_params.get("query", None)
+        if not query:
+            return Response(
+                {"detail": "Query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = self.request.user
+        queryset = Note.objects.filter(user=user).filter(
+            Q(title__icontains=query) | Q(description__icontains=query)
+        )
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class TagViewSet(viewsets.ModelViewSet):

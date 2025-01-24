@@ -1009,6 +1009,16 @@ class NoteTestViewSet(APITestCase):
             "description": "desc 2",
             "tags": [],
         }
+        self.note_3_by_user_json = {
+            "title": "Third note by user",
+            "content": "Content of note 3",
+            "tags": [],
+        }
+        self.note_4_by_user_json = {
+            "title": "Note with title and content",
+            "content": "this is content and title",
+            "tags": [],
+        }
 
     def test_list(self):
         """Tests if main page returns list of notes"""
@@ -1177,6 +1187,29 @@ class NoteTestViewSet(APITestCase):
         # user try delete another user note
         response = self.client.delete(url + "1/", headers=self.header_user)
         self.assertEqual(response.status_code, 404)
+
+    def search_test(self):
+        """Tests if currently working searching"""
+        url = reverse("note-list")
+        self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
+        self.client.post(url, headers=self.header_user, data=self.note_2_by_user_json)
+        self.client.post(url, headers=self.header_user, data=self.note_3_by_user_json)
+        self.client.post(url, headers=self.header_user, data=self.note_4_by_user_json)
+        response = self.client.get(
+            url + "search/?query=Note 1", headers=self.header_user
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertIn("Note 1", str(response.data))
+
+        response = self.client.get(url + "search/?query=Note", headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+
+        # Because sqlite have a bug with searching by register
+        if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
+            self.assertEqual(len(response.data), 2)
+        else:
+            self.assertEqual(len(response.data), 4)
 
 
 class TagTestViewSet(APITestCase):
