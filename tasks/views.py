@@ -11,6 +11,7 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics
 
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.contrib.auth import get_user_model
@@ -485,6 +486,15 @@ class NoteViewSet(viewsets.ModelViewSet):
         queryset = Note.objects.filter(user=user).filter(
             Q(title__icontains=query) | Q(description__icontains=query)
         )
+
+        tag = Tag.objects.filter(user=user).filter(Q(title__icontains=query))
+
+        if tag:
+            queryset = list(queryset)
+            notes_by_tag = Note.objects.filter(tags__in=tag)
+            for note in notes_by_tag:
+                if note not in queryset:
+                    queryset.insert(0, note)
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
