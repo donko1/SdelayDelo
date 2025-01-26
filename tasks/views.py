@@ -488,13 +488,18 @@ class NoteViewSet(viewsets.ModelViewSet):
         )
 
         tag = Tag.objects.filter(user=user).filter(Q(title__icontains=query))
+        queryset = Note.objects.filter(user=user)
 
         if tag:
-            queryset = list(queryset)
             notes_by_tag = Note.objects.filter(tags__in=tag)
             for note in notes_by_tag:
                 if note not in queryset:
-                    queryset.insert(0, note)
+                    queryset = queryset.union(Note.objects.filter(pk=note.pk))
+
+        queryset = list(queryset)
+        queryset.sort(
+            key=lambda note: (-note.is_pinned, note.date_changed), reverse=True
+        )
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
