@@ -510,7 +510,7 @@ class NoteViewSet(viewsets.ModelViewSet):
 
         sorted_queryset = pinned_notes + unpinned_notes
 
-        serializer = self.get_serializer(queryset, many=True)
+        serializer = self.get_serializer(sorted_queryset, many=True)
         return Response(serializer.data)
 
 
