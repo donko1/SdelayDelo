@@ -497,9 +497,18 @@ class NoteViewSet(viewsets.ModelViewSet):
                     queryset = queryset.union(Note.objects.filter(pk=note.pk))
 
         queryset = list(queryset)
+
         queryset.sort(
             key=lambda note: (-note.is_pinned, note.date_changed), reverse=True
         )
+
+        pinned_notes = [note for note in queryset if note.is_pinned]
+        unpinned_notes = [note for note in queryset if not note.is_pinned]
+
+        pinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
+        unpinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
+
+        sorted_queryset = pinned_notes + unpinned_notes
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
