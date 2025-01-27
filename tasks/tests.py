@@ -1011,14 +1011,21 @@ class NoteTestViewSet(APITestCase):
         }
         self.note_3_by_user_json = {
             "title": "Third note by user",
-            "content": "Content of note 3",
+            "description": "Content of note 3",
             "tags": [],
         }
         self.note_4_by_user_json = {
             "title": "Note with title and content",
-            "content": "this is content and title",
+            "description": "this is content and title",
             "tags": [],
         }
+
+        self.note_with_tag = {
+            "title": "Note with tag",
+            "description": "Note with tag",
+            "tags": [1],
+        }
+        self.tag = {"title": "Tag 1", "colour": "#FF0000"}
 
     def test_list(self):
         """Tests if main page returns list of notes"""
@@ -1210,6 +1217,27 @@ class NoteTestViewSet(APITestCase):
             self.assertEqual(len(response.data), 2)
         else:
             self.assertEqual(len(response.data), 4)
+
+    def search_by_tag_test(self):
+        """Tests if searching by tag working currently"""
+        url = reverse("note-list")
+        self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
+
+        self.client.post(reverse("tag-list"), headers=self.header_user, data=self.tag)
+
+        resp = self.client.post(url, headers=self.header_user, data=self.note_with_tag)
+        response = self.client.get(
+            url + "search-by-tag/?Tag=1", headers=self.header_user
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertIn("Note with tag", str(response.data))
+
+        response = self.client.get(
+            url + "search-by-tag/?Tag=2", headers=self.header_user
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
 
 
 class TagTestViewSet(APITestCase):

@@ -468,6 +468,43 @@ class NoteViewSet(viewsets.ModelViewSet):
                 {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
             )
 
+    @action(detail=False, methods=["get"], url_path="search-by-tag")
+    def search_by_tag(self, request):
+        """
+        Searches for note based on tag.
+        """
+        tag = request.query_params.get("Tag", None)
+        if not tag:
+            return Response(
+                {"detail": "Tag parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tag = int(tag)
+        user = self.request.user
+        try:
+            tag_obj = Tag.objects.get(user=user, pk=tag)
+        except:
+            return Response({}, status=status.HTTP_200_OK)
+        print(Note.objects.filter(user=user))
+        queryset = Note.objects.filter(user=user).filter(tags=tag)
+        queryset = list(queryset)
+
+        queryset.sort(
+            key=lambda note: (-note.is_pinned, note.date_changed), reverse=True
+        )
+
+        pinned_notes = [note for note in queryset if note.is_pinned]
+        unpinned_notes = [note for note in queryset if not note.is_pinned]
+
+        pinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
+        unpinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
+
+        sorted_queryset = pinned_notes + unpinned_notes
+
+        serializer = self.get_serializer(sorted_queryset, many=True)
+        return Response(serializer.data)
+
     @action(detail=False, methods=["get"], url_path="search")
     def search(self, request):
         """
