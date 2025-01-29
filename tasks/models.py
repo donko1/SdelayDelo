@@ -62,6 +62,7 @@ class Note(models.Model):
     description = models.TextField()
     date_create = models.DateTimeField(auto_now_add=True)
     date_changed = models.DateTimeField(auto_now=True)
+    date_of_note = models.DateField(blank=True, null=True)
     tags = models.ManyToManyField(Tag, related_name="notes", blank=True)
     is_pinned = models.BooleanField(default=False)
 

@@ -17,6 +17,7 @@ from rest_framework.authtoken.models import Token
 from dateutil.relativedelta import relativedelta
 
 import uuid
+import datetime
 
 from .models import Note, Tag, custom_user, TokenToEmail, Notification
 from .serializers import TagSerializer, NoteSerializer
@@ -243,10 +244,15 @@ class NoteModelTest(TestCase):
             user=self.user, title="Test-note-2", description="some description-2"
         )
         note3 = Note.objects.create(
-            user=self.user, title="Test-note-3", description="some description-3"
+            user=self.user,
+            title="Test-note-3",
+            description="some description-3",
+            date_of_note=datetime.datetime.now(),
         )
         note4 = Note.objects.create(
-            user=self.user, title="Test-note-4", description="some description-4"
+            user=self.user,
+            title="Test-note-4",
+            description="some description-4",
         )
 
         note2.is_pinned = True
@@ -484,6 +490,7 @@ class NoteSerializerTestCase(APITestCase):
             "title": "Test Note",
             "description": "This is a test note.",
             "tags": [self.tag.id],
+            "date_of_note": "31/1/2024",
         }
         self.invalid_note_data = {
             "title": "",
@@ -1084,6 +1091,7 @@ class NoteTestViewSet(APITestCase):
             "title": "Note 1 by user",
             "description": "desc 1",
             "tags": [],
+            "date_of_note": "28/3/2024",
         }
         self.note_1_by_another_user_json = {
             "title": "Note 1 by another user",
