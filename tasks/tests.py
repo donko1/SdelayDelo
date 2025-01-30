@@ -1123,7 +1123,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_list(self):
         """Tests if main page returns list of notes"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         response = self.client.get(url, headers=self.header_user)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [])
@@ -1133,7 +1133,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_create(self):
         """Tests if correctly create"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         response = self.client.post(
             url, headers=self.header_user, data=self.note_1_by_user_json
         )
@@ -1147,7 +1147,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_change(self):
         """Tests if changes are correctly working"""
-        url1 = reverse("note-list")
+        url1 = reverse("note-list", kwargs={"version": "v1"})
         url2 = url1 + "1/"
         self.client.post(url1, headers=self.header_user, data=self.note_1_by_user_json)
 
@@ -1162,7 +1162,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_delete(self):
         """Tests if deleting is working correct"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
 
         response = self.client.delete(url + "1/", headers=self.header_user)
@@ -1174,7 +1174,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_list_both_users_notes(self):
         """Tests if both users see only own notes"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         # user create
         self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
         # another user create
@@ -1196,7 +1196,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_create_both_users(self):
         """Tests if correctly create for both users"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         # user create
         response_user = self.client.post(
             url, headers=self.header_user, data=self.note_1_by_user_json
@@ -1213,7 +1213,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_change_both_users(self):
         """Tests if both users can change their own note"""
-        url1 = reverse("note-list")
+        url1 = reverse("note-list", kwargs={"version": "v1"})
         # user create
         self.client.post(url1, headers=self.header_user, data=self.note_1_by_user_json)
         # another user create
@@ -1243,7 +1243,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_delete_both_users(self):
         """Tests if both users can delete own note"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         # user create
         self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
         # another user create
@@ -1267,7 +1267,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_user_cannot_change_another_user_note(self):
         """Tests if user cant change another user's note"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         # another user create note
         self.client.post(
             url, headers=self.header_another, data=self.note_1_by_another_user_json
@@ -1280,7 +1280,7 @@ class NoteTestViewSet(APITestCase):
 
     def test_user_cannot_delete_another_user_note(self):
         """Tests if user cant delete another user's note"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         # another user create note
         self.client.post(
             url, headers=self.header_another, data=self.note_1_by_another_user_json
@@ -1291,7 +1291,7 @@ class NoteTestViewSet(APITestCase):
 
     def search_test(self):
         """Tests if currently working searching"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
         self.client.post(url, headers=self.header_user, data=self.note_2_by_user_json)
         self.client.post(url, headers=self.header_user, data=self.note_3_by_user_json)
@@ -1314,7 +1314,7 @@ class NoteTestViewSet(APITestCase):
 
     def search_by_tag_test(self):
         """Tests if searching by tag working currently"""
-        url = reverse("note-list")
+        url = reverse("note-list", kwargs={"version": "v1"})
         self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
 
         self.client.post(reverse("tag-list"), headers=self.header_user, data=self.tag)
