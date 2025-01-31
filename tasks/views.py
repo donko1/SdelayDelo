@@ -37,6 +37,7 @@ from .throttles import (
     NoteAndTagThrottleWrite,
 )
 
+from .paginators import VersionedPagination
 
 User = get_user_model()
 
@@ -416,6 +417,7 @@ class NoteViewSet(viewsets.ModelViewSet):
     serializer_class = NoteSerializer
     permission_classes = [IsAuthenticated]
     throttle_classes = [NoteAndTagThrottleRead, NoteAndTagThrottleWrite]
+    pagination_class = VersionedPagination
 
     def get_queryset(self):
         """

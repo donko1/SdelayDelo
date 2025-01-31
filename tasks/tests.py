@@ -1659,3 +1659,53 @@ class TestUpdateUserInfo(APITestCase):
         # Fetch user2 from the database to verify the change persisted
         updated_user2 = User.objects.get(username="user2")
         self.assertFalse(updated_user2.fa_2)
+
+
+class NoteTestViewSetV2(APITestCase):
+    """
+    Tests for NoteViewSet API v2 with pagination.
+    Verifies pagination behavior for version 2 endpoints.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create(
+            username="testuser", email="example@example.com", password="qwerty123"
+        )
+        self.access_token_user = Token.objects.create(user=self.user).key
+        self.header_user = {"Authorization": f"Token {self.access_token_user}"}
+
+        # Create 30 test notes to test pagination
+        for i in range(30):
+            Note.objects.create(
+                user=self.user,
+                title=f"Note {i}",
+                description=f"Description {i}",
+            )
+
+    def test_v2_pagination(self):
+        """Verify v2 list endpoint returns paginated results (25 per page)."""
+        url = reverse("note-list", kwargs={"version": "v2"})
+        response = self.client.get(url, headers=self.header_user)
+
+        self.assertEqual(response.status_code, 200)
+        # Check pagination keys exist
+        self.assertIn("count", response.data)
+        self.assertIn("next", response.data)
+        self.assertIn("results", response.data)
+        # Check page size
+        self.assertEqual(len(response.data["results"]), 25)
+        # Check total count
+        self.assertEqual(response.data["count"], 30)
+        # Check next page URL
+        self.assertIsNotNone(response.data["next"])
+
+    def test_v1_no_pagination(self):
+        """Verify v1 list endpoint doesn't have pagination."""
+        url = reverse("note-list", kwargs={"version": "v1"})
+        response = self.client.get(url, headers=self.header_user)
+
+        self.assertEqual(response.status_code, 200)
+        # Results should be a regular list
+        self.assertIsInstance(response.data, list)
+        # All 30 items should be returned
+        self.assertEqual(len(response.data), 30)

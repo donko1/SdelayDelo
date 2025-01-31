@@ -142,6 +142,9 @@ REST_FRAMEWORK = {
         "note_and_tag_read": "300/m",
         "note_and_tag_write": "30/m",
     },
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
+    "DEFAULT_VERSION": "v1",
+    "ALLOWED_VERSIONS": ["v1", "v2"],
 }
 
 
