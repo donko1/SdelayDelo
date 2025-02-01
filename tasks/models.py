@@ -34,12 +34,20 @@ class Tag(models.Model):
     - icon: An optional icon name for the tag.
     """
 
-    title = models.CharField(max_length=255)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tags")
+    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="tags", verbose_name="Создатель"
+    )
     colour = models.CharField(
-        max_length=7, validators=[validate_hex_color]
+        max_length=7, validators=[validate_hex_color], verbose_name="Цвет"
     )  # Hexadecimal color code
-    icon = models.CharField(max_length=255, blank=True, null=True)
+    icon = models.CharField(
+        max_length=255, blank=True, null=True, verbose_name="Иконка"
+    )
+
+    class Meta:
+        verbose_name = "Тэг"
+        verbose_name_plural = "Тэги"
 
     def __str__(self):
         return self.title
@@ -57,19 +65,25 @@ class Note(models.Model):
     - tags: Tags associated with the note (many-to-many relationship).
     """
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notes")
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-    date_create = models.DateTimeField(auto_now_add=True)
-    date_changed = models.DateTimeField(auto_now=True)
-    date_of_note = models.DateField(blank=True, null=True)
-    tags = models.ManyToManyField(Tag, related_name="notes", blank=True)
-    is_pinned = models.BooleanField(default=False)
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="notes", verbose_name="Создатель"
+    )
+    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    description = models.TextField(verbose_name="Описание")
+    date_create = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    date_changed = models.DateTimeField(auto_now=True, verbose_name="Дата изменения")
+    date_of_note = models.DateField(blank=True, null=True, verbose_name="Дата заметки")
+    tags = models.ManyToManyField(
+        Tag, related_name="notes", blank=True, verbose_name="Тэги"
+    )
+    is_pinned = models.BooleanField(default=False, verbose_name="Статус закреплённости")
 
     def __str__(self):
         return self.title
 
     class Meta:
+        verbose_name = "Заметка"
+        verbose_name_plural = "Заметки"
         ordering = ["-is_pinned"]
 
 
@@ -87,15 +101,25 @@ class TokenToEmail(models.Model):
     - is_verified: A flag indicating whether the email has been successfully verified.
     """
 
-    email = models.EmailField()
-    code = models.CharField(max_length=6, editable=False)
-    token_hash = models.CharField(max_length=64, editable=False, unique=True)
-    salt = models.CharField(
-        max_length=32, editable=False, default=get_random_string(32)
+    email = models.EmailField(verbose_name="Почта")
+    code = models.CharField(max_length=6, editable=False, verbose_name="Код")
+    token_hash = models.CharField(
+        max_length=64, editable=False, unique=True, verbose_name="Хэш токена"
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField(default=timezone.now() + timedelta(minutes=10))
-    is_verified = models.BooleanField(default=False)
+    salt = models.CharField(
+        max_length=32,
+        editable=False,
+        default=get_random_string(32),
+        verbose_name="Соль",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    expires_at = models.DateTimeField(
+        default=timezone.now() + timedelta(minutes=10),
+        verbose_name="Дата истечения токена",
+    )
+    is_verified = models.BooleanField(
+        default=False, verbose_name="Статус подтверждения почты"
+    )
 
     def save(self, *args, **kwargs):
         """
@@ -159,167 +183,171 @@ class TokenToEmail(models.Model):
         """
         return f"TokenToEmail(email={self.email}, is_verified={self.is_verified})"
 
-
-class Notification(models.Model):
-    """
-    Represents a user notification with scheduling and recurrence capabilities.
-
-    Attributes:
-        user (ForeignKey): Recipient of the notification
-        title (CharField): Short description of the notification
-        content (TextField): Detailed message content
-        created_at (DateTimeField): Initial creation timestamp
-        is_read (BooleanField): Read status flag
-        is_repeating (BooleanField): Recurrence activation flag
-        repeat_type (CharField): Type of recurrence pattern
-        repeat_params (JSONField): Custom recurrence parameters
-        next_notification_date (DateTimeField): Next scheduled occurrence
-        last_notification_date (DateTimeField): Last actual dispatch time
-        is_active (BooleanField): Active status flag
-    """
-
-    REPEAT_TYPES = (
-        ("daily", "Daily"),
-        ("weekly", "Weekly"),
-        ("monthly", "Monthly"),
-        ("yearly", "Yearly"),
-        ("custom", "Custom Schedule"),
-    )
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="notifications",
-        verbose_name="User",
-        help_text="Recipient of the notification",
-    )
-    title = models.CharField(
-        max_length=255,
-        verbose_name="Title",
-        help_text="Short description (max 255 chars)",
-    )
-    content = models.TextField(
-        verbose_name="Content", help_text="Detailed message body"
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name="Creation Date",
-        help_text="Initial creation timestamp",
-    )
-    is_read = models.BooleanField(
-        default=False,
-        verbose_name="Read Status",
-        help_text="Has the user viewed the notification?",
-    )
-    is_repeating = models.BooleanField(
-        default=False,
-        verbose_name="Repeating",
-        help_text="Does this notification recur?",
-    )
-    repeat_type = models.CharField(
-        max_length=10,
-        choices=REPEAT_TYPES,
-        null=True,
-        blank=True,
-        verbose_name="Repeat Type",
-        help_text="Select recurrence pattern",
-    )
-    repeat_params = models.JSONField(
-        null=True,
-        blank=True,
-        verbose_name="Repeat Parameters",
-        help_text="Custom parameters in JSON format. For custom type, use: "
-        '{"interval": number, "unit": "days|weeks|months|years"}',
-    )
-    next_notification_date = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name="Next Occurrence",
-        help_text="Next scheduled dispatch time",
-    )
-    last_notification_date = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name="Last Sent",
-        help_text="Timestamp of most recent dispatch",
-    )
-    is_active = models.BooleanField(
-        default=True,
-        verbose_name="Active",
-        help_text="Is this notification currently active?",
-    )
-
-    def __str__(self):
-        """String representation of the notification"""
-        return f"{self.title} - {self.user.username}"
-
-    def save(self, *args, **kwargs):
-        """
-        Override save method to handle initial scheduling for repeating notifications.
-        Sets next_notification_date if creating a new repeating notification.
-        """
-        if not self.pk and self.is_repeating:
-            self.next_notification_date = self.created_at or timezone.now()
-        super().save(*args, **kwargs)
-
-    def update_next_notification(self):
-        """
-        Calculate and update the next scheduled date based on recurrence rules.
-        Supports predefined intervals and custom parameters.
-        """
-        if not self.is_repeating or not self.is_active:
-            return
-
-        now = timezone.now()
-        last_date = self.next_notification_date or now
-
-        if self.repeat_type == "daily":
-            next_date = last_date + relativedelta(days=1)
-        elif self.repeat_type == "weekly":
-            next_date = last_date + relativedelta(weeks=1)
-        elif self.repeat_type == "monthly":
-            next_date = last_date + relativedelta(months=1)
-        elif self.repeat_type == "yearly":
-            next_date = last_date + relativedelta(years=1)
-        elif self.repeat_type == "custom" and self.repeat_params:
-            # Custom interval handling
-            interval = self.repeat_params.get("interval", 1)
-            unit = self.repeat_params.get("unit", "days")
-            if unit.endswith("s"):  # Ensure plural form
-                unit = unit.rstrip("s")
-            next_date = last_date + relativedelta(**{f"{unit}s": interval})
-        else:
-            return
-
-        if next_date > now:
-            self.next_notification_date = next_date
-            self.save()
-
-    def send_notification(self):
-        """
-        Main notification dispatch method.
-        Should be extended with actual delivery logic (email, push, etc).
-        Updates timestamps and handles recurrence scheduling.
-        """
-        # Implement actual delivery mechanism here
-        # Example: send_email, push_to_websocket, etc
-
-        self.last_notification_date = timezone.now()
-        self.save()
-
-        if self.is_repeating:
-            self.update_next_notification()
-        else:
-            self.is_active = False
-            self.save()
-
     class Meta:
-        """Metadata options for the Notification model"""
+        verbose_name = "Токен для подтверждения почты"
+        verbose_name_plural = "Токены для подтверждения почты"
 
-        verbose_name = "Notification"
-        verbose_name_plural = "Notifications"
-        indexes = [
-            models.Index(fields=["user", "is_active"]),
-            models.Index(fields=["next_notification_date"]),
-        ]
-        ordering = ["-created_at"]
+
+# class Notification(models.Model): # TODO: release this model
+#     """
+#     Represents a user notification with scheduling and recurrence capabilities.
+
+#     Attributes:
+#         user (ForeignKey): Recipient of the notification
+#         title (CharField): Short description of the notification
+#         content (TextField): Detailed message content
+#         created_at (DateTimeField): Initial creation timestamp
+#         is_read (BooleanField): Read status flag
+#         is_repeating (BooleanField): Recurrence activation flag
+#         repeat_type (CharField): Type of recurrence pattern
+#         repeat_params (JSONField): Custom recurrence parameters
+#         next_notification_date (DateTimeField): Next scheduled occurrence
+#         last_notification_date (DateTimeField): Last actual dispatch time
+#         is_active (BooleanField): Active status flag
+#     """
+
+#     REPEAT_TYPES = (
+#         ("daily", "Daily"),
+#         ("weekly", "Weekly"),
+#         ("monthly", "Monthly"),
+#         ("yearly", "Yearly"),
+#         ("custom", "Custom Schedule"),
+#     )
+
+#     user = models.ForeignKey(
+#         settings.AUTH_USER_MODEL,
+#         on_delete=models.CASCADE,
+#         related_name="notifications",
+#         verbose_name="User",
+#         help_text="Recipient of the notification",
+#     )
+#     title = models.CharField(
+#         max_length=255,
+#         verbose_name="Title",
+#         help_text="Short description (max 255 chars)",
+#     )
+#     content = models.TextField(
+#         verbose_name="Content", help_text="Detailed message body"
+#     )
+#     created_at = models.DateTimeField(
+#         auto_now_add=True,
+#         verbose_name="Creation Date",
+#         help_text="Initial creation timestamp",
+#     )
+#     is_read = models.BooleanField(
+#         default=False,
+#         verbose_name="Read Status",
+#         help_text="Has the user viewed the notification?",
+#     )
+#     is_repeating = models.BooleanField(
+#         default=False,
+#         verbose_name="Repeating",
+#         help_text="Does this notification recur?",
+#     )
+#     repeat_type = models.CharField(
+#         max_length=10,
+#         choices=REPEAT_TYPES,
+#         null=True,
+#         blank=True,
+#         verbose_name="Repeat Type",
+#         help_text="Select recurrence pattern",
+#     )
+#     repeat_params = models.JSONField(
+#         null=True,
+#         blank=True,
+#         verbose_name="Repeat Parameters",
+#         help_text="Custom parameters in JSON format. For custom type, use: "
+#         '{"interval": number, "unit": "days|weeks|months|years"}',
+#     )
+#     next_notification_date = models.DateTimeField(
+#         null=True,
+#         blank=True,
+#         verbose_name="Next Occurrence",
+#         help_text="Next scheduled dispatch time",
+#     )
+#     last_notification_date = models.DateTimeField(
+#         null=True,
+#         blank=True,
+#         verbose_name="Last Sent",
+#         help_text="Timestamp of most recent dispatch",
+#     )
+#     is_active = models.BooleanField(
+#         default=True,
+#         verbose_name="Active",
+#         help_text="Is this notification currently active?",
+#     )
+
+#     def __str__(self):
+#         """String representation of the notification"""
+#         return f"{self.title} - {self.user.username}"
+
+#     def save(self, *args, **kwargs):
+#         """
+#         Override save method to handle initial scheduling for repeating notifications.
+#         Sets next_notification_date if creating a new repeating notification.
+#         """
+#         if not self.pk and self.is_repeating:
+#             self.next_notification_date = self.created_at or timezone.now()
+#         super().save(*args, **kwargs)
+
+#     def update_next_notification(self):
+#         """
+#         Calculate and update the next scheduled date based on recurrence rules.
+#         Supports predefined intervals and custom parameters.
+#         """
+#         if not self.is_repeating or not self.is_active:
+#             return
+
+#         now = timezone.now()
+#         last_date = self.next_notification_date or now
+
+#         if self.repeat_type == "daily":
+#             next_date = last_date + relativedelta(days=1)
+#         elif self.repeat_type == "weekly":
+#             next_date = last_date + relativedelta(weeks=1)
+#         elif self.repeat_type == "monthly":
+#             next_date = last_date + relativedelta(months=1)
+#         elif self.repeat_type == "yearly":
+#             next_date = last_date + relativedelta(years=1)
+#         elif self.repeat_type == "custom" and self.repeat_params:
+#             # Custom interval handling
+#             interval = self.repeat_params.get("interval", 1)
+#             unit = self.repeat_params.get("unit", "days")
+#             if unit.endswith("s"):  # Ensure plural form
+#                 unit = unit.rstrip("s")
+#             next_date = last_date + relativedelta(**{f"{unit}s": interval})
+#         else:
+#             return
+
+#         if next_date > now:
+#             self.next_notification_date = next_date
+#             self.save()
+
+#     def send_notification(self):
+#         """
+#         Main notification dispatch method.
+#         Should be extended with actual delivery logic (email, push, etc).
+#         Updates timestamps and handles recurrence scheduling.
+#         """
+#         # Implement actual delivery mechanism here
+#         # Example: send_email, push_to_websocket, etc
+
+#         self.last_notification_date = timezone.now()
+#         self.save()
+
+#         if self.is_repeating:
+#             self.update_next_notification()
+#         else:
+#             self.is_active = False
+#             self.save()
+
+#     class Meta:
+#         """Metadata options for the Notification model"""
+
+#         verbose_name = "Notification"
+#         verbose_name_plural = "Notifications"
+#         indexes = [
+#             models.Index(fields=["user", "is_active"]),
+#             models.Index(fields=["next_notification_date"]),
+#         ]
+#         ordering = ["-created_at"]
