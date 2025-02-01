@@ -6,6 +6,7 @@ from . import views
 
 router = routers.DefaultRouter()
 router.register(r"(?P<version>(v1|v2))/note", views.NoteViewSet, basename="note")
+router.register(r"note", views.NoteViewSet, basename="note_default")
 router.register(r"tag", views.TagViewSet, basename="tag")
 
 urlpatterns = [
