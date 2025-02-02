@@ -5,6 +5,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils.timezone import now, timedelta
 from django.conf import settings
 
@@ -14,13 +15,14 @@ from rest_framework.test import APITestCase, APIRequestFactory, force_authentica
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 
-from dateutil.relativedelta import relativedelta
-
 import uuid
 import datetime
+import io
+
+from PIL import Image
 
 from .models import Note, Tag, custom_user, TokenToEmail
-from .serializers import TagSerializer, NoteSerializer
+from .serializers import TagSerializer, NoteSerializer, IconUploadSerializer
 from .validators import is_hex_color
 from .views import who_am_i
 
@@ -33,6 +35,17 @@ def aware_datetime(dt):
     if parsed and is_naive(parsed):
         return make_aware(parsed)
     return parsed
+
+
+def generate_test_image(filename="test.png", size=(100, 100), color=(155, 0, 0)):
+    """
+    Generate a simple image file for testing purposes.
+    """
+    file_obj = io.BytesIO()
+    image = Image.new("RGB", size, color)
+    image.save(file_obj, "PNG")
+    file_obj.seek(0)
+    return SimpleUploadedFile(filename, file_obj.read(), content_type="image/png")
 
 
 User = get_user_model()
@@ -1710,3 +1723,65 @@ class NoteTestViewSetV2(APITestCase):
         self.assertIsInstance(response.data, list)
         # All 30 items should be returned
         self.assertEqual(len(response.data), 30)
+
+
+class IconUploadSerializerTest(APITestCase):
+    def setUp(self):
+        # Create a test user
+        self.user = User.objects.create_user(username="testuser", password="testpass")
+        # Create a dummy tag (if needed for integration tests)
+        # from your_app.models import Tag
+        # self.tag = Tag.objects.create(title="Test Tag", user=self.user, colour="#FFFFFF")
+
+        # Prepare an APIRequestFactory request to pass to serializer context
+        self.factory = APIRequestFactory()
+        self.request = self.factory.post("/dummy-url/")
+        self.request.user = self.user
+
+    def test_valid_serializer(self):
+        """
+        Test that the serializer validates when provided with correct data.
+        """
+        image_file = generate_test_image()
+        data = {
+            "icon": image_file,
+            "tag_id": "1",  # assuming tag id as string; in a real test, you might use self.tag.id
+            # 'user' is a HiddenField and will be populated from the request context
+        }
+
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        validated_data = serializer.validated_data
+        self.assertIn("icon", validated_data)
+        self.assertIn("tag_id", validated_data)
+        self.assertIn("user", validated_data)
+        self.assertEqual(validated_data["tag_id"], "1")
+        self.assertEqual(validated_data["user"], self.user)
+
+    def test_missing_icon(self):
+        """
+        Test that the serializer raises a validation error when 'icon' is missing.
+        """
+        data = {
+            # 'icon' is omitted intentionally
+            "tag_id": "1",
+        }
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("icon", serializer.errors)
+        self.assertEqual(serializer.errors["icon"][0].code, "required")
+
+    def test_empty_tag_id(self):
+        """
+        Test that the serializer raises a validation error when 'tag_id' is blank.
+        """
+        image_file = generate_test_image()
+        data = {
+            "icon": image_file,
+            "tag_id": "",  # blank tag_id should not be allowed
+        }
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("tag_id", serializer.errors)
+        # The exact error message/code may vary; checking for existence is sufficient.

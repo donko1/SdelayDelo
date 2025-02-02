@@ -142,3 +142,11 @@ class UserUpdateSerializer(
         )  # Use instance value if not provided
         instance.save()
         return instance
+
+
+class IconUploadSerializer(serializers.Serializer):
+    """Serializer to upload images to tag"""
+
+    icon = serializers.ImageField(required=True, allow_null=False)
+    tag_id = serializers.CharField(required=True, allow_blank=False, allow_null=False)
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())

@@ -3,6 +3,7 @@ Django==5.1.4
 djangorestframework==3.15.2
 freezegun==1.5.1
 git-filter-repo==2.47.0
+pillow==11.1.0
 python-dateutil==2.9.0.post0
 six==1.17.0
 sqlparse==0.5.3
