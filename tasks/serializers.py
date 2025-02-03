@@ -2,6 +2,11 @@ from django.utils.timezone import now
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.core.files.storage import default_storage
+
+import uuid
+import os
+
 
 from rest_framework import serializers
 
@@ -145,8 +150,42 @@ class UserUpdateSerializer(
 
 
 class IconUploadSerializer(serializers.Serializer):
-    """Serializer to upload images to tag"""
+    """Serializer to upload images"""
 
     icon = serializers.ImageField(required=True, allow_null=False)
-    tag_id = serializers.CharField(required=True, allow_blank=False, allow_null=False)
+    tag_id = serializers.CharField(required=True, allow_null=False, allow_blank=False)
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    def validate(self, attrs):
+        """Validate that user and tag are the same and correct"""
+        attrs = super().validate(attrs)
+        user = attrs["user"]
+        tag_id = attrs["tag_id"]
+
+        try:
+            tag = Tag.objects.get(id=tag_id)
+        except Tag.DoesNotExist:
+            raise serializers.ValidationError({"tag_id": "No tag with this id"})
+
+        if tag.user != user:
+            raise serializers.ValidationError(
+                {"tag_id": "U dont have roots to change it"}, code="permission_denied"
+            )
+
+        attrs["tag"] = tag
+        return attrs
+
+    def save(self):
+        """Save icon in media root"""
+        icon = self.validated_data["icon"]
+        tag = self.validated_data["tag"]
+
+        file_ext = os.path.splitext(icon.name)[1]
+        file_name = f"{uuid.uuid4().hex}{file_ext}"
+
+        file_path = default_storage.save(f"icons/{file_name}", icon)
+
+        tag.icon = file_path
+        tag.save()
+
+        return tag

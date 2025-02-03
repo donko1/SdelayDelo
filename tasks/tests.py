@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils.timezone import now, timedelta
 from django.conf import settings
+from django.core.files.storage import default_storage
 
 
 from rest_framework.exceptions import ValidationError
@@ -18,6 +19,7 @@ from rest_framework.authtoken.models import Token
 import uuid
 import datetime
 import io
+import os
 
 from PIL import Image
 
@@ -1727,37 +1729,125 @@ class NoteTestViewSetV2(APITestCase):
 
 class IconUploadSerializerTest(APITestCase):
     def setUp(self):
-        # Create a test user
         self.user = User.objects.create_user(username="testuser", password="testpass")
-        # Create a dummy tag (if needed for integration tests)
-        # from your_app.models import Tag
-        # self.tag = Tag.objects.create(title="Test Tag", user=self.user, colour="#FFFFFF")
+        self.other_user = User.objects.create_user(
+            username="otheruser", password="testpass"
+        )
 
-        # Prepare an APIRequestFactory request to pass to serializer context
+        # Create test tags
+        self.user_tag = Tag.objects.create(
+            title="User Tag", user=self.user, colour="#FFFFFF"
+        )
+        self.other_user_tag = Tag.objects.create(
+            title="Other User Tag", user=self.other_user, colour="#000000"
+        )
+
+        # Request context setup
         self.factory = APIRequestFactory()
         self.request = self.factory.post("/dummy-url/")
         self.request.user = self.user
 
     def test_valid_serializer(self):
-        """
-        Test that the serializer validates when provided with correct data.
-        """
+        """Test successful validation and file upload with correct permissions"""
         image_file = generate_test_image()
         data = {
             "icon": image_file,
-            "tag_id": "1",  # assuming tag id as string; in a real test, you might use self.tag.id
-            # 'user' is a HiddenField and will be populated from the request context
+            "tag_id": str(self.user_tag.id),
         }
 
         serializer = IconUploadSerializer(data=data, context={"request": self.request})
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
-        validated_data = serializer.validated_data
-        self.assertIn("icon", validated_data)
-        self.assertIn("tag_id", validated_data)
-        self.assertIn("user", validated_data)
-        self.assertEqual(validated_data["tag_id"], "1")
-        self.assertEqual(validated_data["user"], self.user)
+        # Test file saving logic
+        instance = serializer.save()
+        self.assertEqual(instance.id, self.user_tag.id)
+
+        # Verify file storage properties
+        self.assertTrue(instance.icon.startswith("icons/"))
+        filename_part = os.path.splitext(instance.icon)[0].split("/")[-1]
+        try:
+            uuid.UUID(hex=filename_part)
+        except ValueError:
+            self.fail("Invalid UUID format in filename")
+
+        self.assertTrue(default_storage.exists(instance.icon))
+
+    def test_nonexistent_tag(self):
+        """Test validation fails with non-existent tag ID"""
+        image_file = generate_test_image()
+
+        data = {
+            "icon": generate_test_image(),
+            "tag_id": "999999",
+        }
+
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+
+        self.assertIn("tag_id", context.exception.detail)
+        self.assertEqual(context.exception.detail["tag_id"][0].code, "invalid")
+
+    def test_unauthorized_tag_access(self):
+        """Test validation fails when user doesn't own the tag"""
+        image_file = generate_test_image()
+        data = {
+            "icon": image_file,
+            "tag_id": str(self.other_user_tag.id),
+        }
+
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        with self.assertRaises(ValidationError) as context:
+            serializer.is_valid(raise_exception=True)
+
+        self.assertIn("tag_id", context.exception.detail)
+        self.assertEqual(
+            context.exception.detail["tag_id"][0].code, "permission_denied"
+        )
+
+    def test_invalid_file_type(self):
+        """Test validation fails with non-image file"""
+        invalid_file = SimpleUploadedFile(
+            "test_file.txt", b"file_content", content_type="text/plain"
+        )
+        data = {
+            "icon": invalid_file,
+            "tag_id": str(self.user_tag.id),
+        }
+
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("icon", serializer.errors)
+        self.assertEqual(serializer.errors["icon"][0].code, "invalid_image")
+
+    def test_filename_uniqueness(self):
+        """Test generated filenames are unique for subsequent uploads"""
+        image_file1 = generate_test_image()
+        image_file2 = generate_test_image()
+
+        # First upload
+        data1 = {
+            "icon": image_file1,
+            "tag_id": str(self.user_tag.id),
+        }
+        serializer1 = IconUploadSerializer(
+            data=data1, context={"request": self.request}
+        )
+        serializer1.is_valid(raise_exception=True)
+        instance1 = serializer1.save()
+
+        # Second upload
+        data2 = {
+            "icon": image_file2,
+            "tag_id": str(self.user_tag.id),
+        }
+        serializer2 = IconUploadSerializer(
+            data=data2, context={"request": self.request}
+        )
+        serializer2.is_valid(raise_exception=True)
+        instance2 = serializer2.save()
+
+        self.assertNotEqual(instance1.icon, instance2.icon)
 
     def test_missing_icon(self):
         """
