@@ -150,7 +150,7 @@ class UserUpdateSerializer(
 
 
 class IconUploadSerializer(serializers.Serializer):
-    """Serializer to upload images"""
+    """Serializer to upload and manage tag icons"""
 
     icon = serializers.ImageField(required=True, allow_null=False)
     tag_id = serializers.CharField(required=True, allow_null=False, allow_blank=False)
@@ -169,23 +169,69 @@ class IconUploadSerializer(serializers.Serializer):
 
         if tag.user != user:
             raise serializers.ValidationError(
-                {"tag_id": "U dont have roots to change it"}, code="permission_denied"
+                {"tag_id": "U dont have rights to change it"}, code="permission_denied"
             )
 
         attrs["tag"] = tag
         return attrs
 
     def save(self):
-        """Save icon in media root"""
+        """Save new icon in media root and update tag's icon path"""
         icon = self.validated_data["icon"]
         tag = self.validated_data["tag"]
 
+        # Generate new unique filename
         file_ext = os.path.splitext(icon.name)[1]
         file_name = f"{uuid.uuid4().hex}{file_ext}"
-
         file_path = default_storage.save(f"icons/{file_name}", icon)
 
+        # Update tag with new icon path
         tag.icon = file_path
         tag.save()
 
+        return tag
+
+    def delete(self):
+        """
+        Deletes the associated icon file from storage and clears the tag's icon field.
+        If the tag does not have an existing icon, no action is taken.
+        """
+        tag = self.validated_data.get("tag")
+        if not tag.icon:
+            return
+
+        file_path = tag.icon
+
+        # Delete physical file
+        if default_storage.exists(file_path):
+            default_storage.delete(file_path)
+
+        # Clear icon path in database
+        tag.icon = None
+        tag.save()
+
+    def update_icon(self):
+        """
+        Updates the existing icon file at the current path with the new image.
+        The tag's icon field remains unchanged.
+        Raises ValidationError if no existing icon is present.
+        """
+        tag = self.validated_data.get("tag")
+        if not tag.icon:
+            raise serializers.ValidationError(
+                {"icon": "Tag does not have an existing icon to update."}
+            )
+
+        icon = self.validated_data["icon"]
+        file_path = tag.icon
+
+        # Remove existing file before saving new one to prevent name conflicts
+        if default_storage.exists(file_path):
+            default_storage.delete(file_path)
+
+        # Save new content to existing path
+        default_storage.save(file_path, icon)
+
+        # Persist any potential changes to tag (though icon path remains same)
+        tag.save()
         return tag

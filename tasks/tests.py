@@ -1772,10 +1772,72 @@ class IconUploadSerializerTest(APITestCase):
 
         self.assertTrue(default_storage.exists(instance.icon))
 
+    def test_delete(self):
+        """Tests deleting in serializer"""
+        image_file = generate_test_image()
+        data = {
+            "icon": image_file,
+            "tag_id": str(self.user_tag.id),
+        }
+
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        instance = serializer.save()
+        self.assertEqual(instance.id, self.user_tag.id)
+
+        filename_part = os.path.splitext(instance.icon)[0].split("/")[-1]
+        path = os.path.splitext(instance.icon)[0]
+
+        try:
+            uuid.UUID(hex=filename_part)
+        except ValueError:
+            self.fail("Invalid UUID format in filename")
+
+        self.assertTrue(default_storage.exists(instance.icon))
+
+        serializer.delete()
+        self.assertIsNone(self.user_tag.icon)
+        self.assertFalse(os.path.exists(path))
+
+    def test_update(self):
+        """Tests if update is correctly working"""
+        image_file = generate_test_image()
+        new_image_file = generate_test_image(color=(155, 0, 155))
+        data = {
+            "icon": image_file,
+            "tag_id": str(self.user_tag.id),
+        }
+
+        new_data = {
+            "icon": new_image_file,
+            "tag_id": str(self.user_tag.id),
+        }
+
+        serializer = IconUploadSerializer(data=data, context={"request": self.request})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        instance = serializer.save()
+        path = os.path.splitext(instance.icon)[0]
+        with open(f"{path}.png", "rb") as f:
+            chunk1 = f.read(4096)
+        old_count = len(os.listdir(path.split("/")[0]))
+
+        serializer = IconUploadSerializer(
+            data=new_data, context={"request": self.request}
+        )
+        self.assertTrue(serializer.is_valid())
+        instance = serializer.update_icon()
+
+        self.assertEqual(old_count, len(os.listdir(path.split("/")[0])))
+
+        with open(f"{path}.png", "rb") as f:
+            chunk2 = f.read(4096)
+
+        self.assertNotEqual(chunk1, chunk2)
+
     def test_nonexistent_tag(self):
         """Test validation fails with non-existent tag ID"""
-        image_file = generate_test_image()
-
         data = {
             "icon": generate_test_image(),
             "tag_id": "999999",
