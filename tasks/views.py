@@ -30,6 +30,7 @@ from .serializers import (
     NoteSerializer,
     TagSerializer,
     UserUpdateSerializer,
+    IconUploadSerializer,
 )
 from .throttles import (
     WhoAmIRateThrottle,
@@ -620,3 +621,82 @@ class TagViewSet(viewsets.ModelViewSet):
             return Response(
                 {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class IconViewSet(viewsets.ViewSet):
+    """
+    API endpoint for managing tag icons
+
+    Actions:
+    - upload: Create new icon for a tag
+    - update: Replace existing icon content
+    - delete: Remove icon from tag
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=["POST"], url_name="upload", url_path="upload")
+    def upload_icon(self, request):
+        """
+        Create new icon association
+
+        Parameters:
+        - tag_id: string, required
+        - icon: file, required
+
+        Returns:
+        - 201 Created: Returns tag data with new icon path
+        - 400 Bad Request: Validation errors
+        """
+        serializer = IconUploadSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["PUT"], url_name="update", url_path="update")
+    def update_icon(self, request):
+        """
+        Update existing icon content
+
+        Requirements:
+        - Tag must already have an icon
+
+        Parameters:
+        - tag_id: string, required
+        - icon: file, required
+
+        Returns:
+        - 200 OK: Success message with path
+        - 400 Bad Request: Validation errors
+        - 404 Not Found: No icon exists to update
+        """
+        serializer = IconUploadSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_tag = serializer.update_icon()
+        return Response(
+            {"detail": "Icon content updated", "icon_path": updated_tag.icon},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["DELETE"], url_name="delete", url_path="delete")
+    def delete_icon(self, request):
+        """
+        Remove icon association
+
+        Parameters:
+        - tag_id: string, required
+
+        Returns:
+        - 204 No Content: Successful deletion
+        - 400 Bad Request: Validation errors
+        """
+        serializer = IconUploadSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

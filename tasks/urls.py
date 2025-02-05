@@ -8,6 +8,8 @@ router = routers.DefaultRouter()
 router.register(r"(?P<version>(v1|v2))/note", views.NoteViewSet, basename="note")
 router.register(r"note", views.NoteViewSet, basename="note_default")
 router.register(r"tag", views.TagViewSet, basename="tag")
+router.register(r"icons", views.IconViewSet, basename="icon")
+
 
 urlpatterns = [
     path("hello_world/", views.hello_world, name="hello_world"),
