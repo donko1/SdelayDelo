@@ -1800,6 +1800,7 @@ class IconUploadSerializerTest(APITestCase):
         self.assertIsNone(self.user_tag.icon)
         self.assertFalse(os.path.exists(path))
 
+    @override_settings(MEDIA_ROOT="media")
     def test_update(self):
         """Tests if update is correctly working"""
         image_file = generate_test_image()
@@ -1819,9 +1820,9 @@ class IconUploadSerializerTest(APITestCase):
 
         instance = serializer.save()
         path = os.path.splitext(instance.icon)[0]
-        with open(f"{path}.png", "rb") as f:
+        with open(f"{settings.MEDIA_ROOT}/{path}.png", "rb") as f:
             chunk1 = f.read(4096)
-        old_count = len(os.listdir(path.split("/")[0]))
+        old_count = len(os.listdir(f'{settings.MEDIA_ROOT}/{path.split("/")[0]}'))
 
         serializer = IconUploadSerializer(
             data=new_data, context={"request": self.request}
@@ -1829,12 +1830,18 @@ class IconUploadSerializerTest(APITestCase):
         self.assertTrue(serializer.is_valid())
         instance = serializer.update_icon()
 
-        self.assertEqual(old_count, len(os.listdir(path.split("/")[0])))
+        self.assertEqual(
+            old_count, len(os.listdir(f'{settings.MEDIA_ROOT}/{path.split("/")[0]}'))
+        )
 
-        with open(f"{path}.png", "rb") as f:
+        with open(f"{settings.MEDIA_ROOT}/{path}.png", "rb") as f:
             chunk2 = f.read(4096)
 
         self.assertNotEqual(chunk1, chunk2)
+
+        os.remove(f"{settings.MEDIA_ROOT}/{path}.png")
+
+        self.assertEqual(os.listdir(f'{settings.MEDIA_ROOT}/{path.split("/")[0]}'), [])
 
     def test_nonexistent_tag(self):
         """Test validation fails with non-existent tag ID"""
@@ -1926,6 +1933,7 @@ class IconUploadSerializerTest(APITestCase):
 
 
 class IconAPITests(APITestCase):
+
     def setUp(self):
         self.user = User.objects.create_user(
             username="testuser", password="testpass123"

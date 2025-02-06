@@ -183,7 +183,9 @@ class IconUploadSerializer(serializers.Serializer):
         # Generate new unique filename
         file_ext = os.path.splitext(icon.name)[1]
         file_name = f"{uuid.uuid4().hex}{file_ext}"
-        file_path = default_storage.save(f"icons/{file_name}", icon)
+        file_path = default_storage.save(
+            f"{settings.ICON_MEDIA_PATH}/{file_name}", icon
+        )
 
         # Update tag with new icon path
 

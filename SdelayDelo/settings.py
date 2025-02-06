@@ -76,10 +76,6 @@ ERROR_THRESHOLD = 10
 BAN_DURATION_MINUTES = 3 * 60
 ERROR_WINDOW_MINUTES = 10
 
-if TESTING:
-    ERROR_THRESHOLD = 100_000
-    BAN_DURATION_MINUTES = 0
-    ERROR_WINDOW_MINUTES = 100_000
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -172,3 +168,10 @@ except SyntaxError:
         "Local settings file is not full. Please check if local_settings.py have all information(especially email)"
     )
     sys.exit(1)
+
+
+ICON_MEDIA_PATH = "icons"
+MEDIA_ROOT = "media"
+
+if TESTING:
+    from .settings_test import *

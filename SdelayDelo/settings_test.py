@@ -1,3 +1,7 @@
 import tempfile
 
 MEDIA_ROOT = tempfile.mkdtemp()
+
+ERROR_THRESHOLD = 100_000
+BAN_DURATION_MINUTES = 0
+ERROR_WINDOW_MINUTES = 100_000
