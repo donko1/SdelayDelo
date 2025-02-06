@@ -36,6 +36,7 @@ from .throttles import (
     WhoAmIRateThrottle,
     NoteAndTagThrottleRead,
     NoteAndTagThrottleWrite,
+    IconThrottle,
 )
 
 from .paginators import VersionedPagination
@@ -634,6 +635,7 @@ class IconViewSet(viewsets.ViewSet):
     """
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [IconThrottle]
 
     @action(detail=False, methods=["POST"], url_name="upload", url_path="upload")
     def upload_icon(self, request):
@@ -652,8 +654,10 @@ class IconViewSet(viewsets.ViewSet):
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        tag = serializer.save()
+        return Response(
+            {"tag_id": tag.pk, "icon": tag.icon}, status=status.HTTP_201_CREATED
+        )
 
     @action(detail=False, methods=["PUT"], url_name="update", url_path="update")
     def update_icon(self, request):

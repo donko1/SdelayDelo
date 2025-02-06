@@ -1847,8 +1847,7 @@ class IconUploadSerializerTest(APITestCase):
         with self.assertRaises(ValidationError) as context:
             serializer.is_valid(raise_exception=True)
 
-        self.assertIn("tag_id", context.exception.detail)
-        self.assertEqual(context.exception.detail["tag_id"][0].code, "invalid")
+        self.assertIn("Ur tag id is not correct", str(context.exception.detail))
 
     def test_unauthorized_tag_access(self):
         """Test validation fails when user doesn't own the tag"""
@@ -1911,19 +1910,6 @@ class IconUploadSerializerTest(APITestCase):
 
         self.assertNotEqual(instance1.icon, instance2.icon)
 
-    def test_missing_icon(self):
-        """
-        Test that the serializer raises a validation error when 'icon' is missing.
-        """
-        data = {
-            # 'icon' is omitted intentionally
-            "tag_id": "1",
-        }
-        serializer = IconUploadSerializer(data=data, context={"request": self.request})
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("icon", serializer.errors)
-        self.assertEqual(serializer.errors["icon"][0].code, "required")
-
     def test_empty_tag_id(self):
         """
         Test that the serializer raises a validation error when 'tag_id' is blank.
@@ -1937,3 +1923,74 @@ class IconUploadSerializerTest(APITestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("tag_id", serializer.errors)
         # The exact error message/code may vary; checking for existence is sufficient.
+
+
+class IconAPITests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="testuser", password="testpass123"
+        )
+        self.tag = Tag.objects.create(
+            title="Test Tag", user=self.user, colour="#FFFFFF"
+        )
+        self.client.force_authenticate(user=self.user)
+        self.image = generate_test_image()
+
+    def test_upload_icon_success(self):
+        url = reverse("icon-upload")
+        data = {"tag_id": str(self.tag.id), "icon": self.image}
+
+        response = self.client.post(url, data, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.tag.refresh_from_db()
+        self.assertTrue(bool(self.tag.icon))
+        self.assertEqual(response.data["icon"], self.tag.icon)
+        # Cleanup uploaded file
+        if self.tag.icon:
+            default_storage.delete(self.tag.icon)
+
+    def test_upload_icon_invalid_tag(self):
+        url = reverse("icon-upload")
+        data = {"tag_id": "invalid-uuid", "icon": self.image}
+
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_icon_success(self):
+        # First upload an icon
+        self.test_upload_icon_success()
+
+        url = reverse("icon-update")
+        new_image = generate_test_image()
+        data = {"tag_id": str(self.tag.id), "icon": new_image}
+
+        response = self.client.put(url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_delete_icon_success(self):
+        # First upload an icon
+        self.test_upload_icon_success()
+
+        url = reverse("icon-delete")
+        data = {"tag_id": str(self.tag.id)}
+
+        response = self.client.delete(url, data)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.tag.refresh_from_db()
+        self.assertFalse(bool(self.tag.icon))
+
+    def test_delete_non_existing_icon(self):
+        url = reverse("icon-delete")
+        data = {"tag_id": str(self.tag.id)}
+
+        response = self.client.delete(url, data)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_unauthorized_access(self):
+        self.client.logout()
+
+        urls = [reverse("icon-upload"), reverse("icon-update"), reverse("icon-delete")]
+
+        for url in urls:
+            response = self.client.post(url, {})
+            self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -152,7 +152,7 @@ class UserUpdateSerializer(
 class IconUploadSerializer(serializers.Serializer):
     """Serializer to upload and manage tag icons"""
 
-    icon = serializers.ImageField(required=True, allow_null=False)
+    icon = serializers.ImageField(required=False, allow_null=False)
     tag_id = serializers.CharField(required=True, allow_null=False, allow_blank=False)
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
@@ -164,8 +164,8 @@ class IconUploadSerializer(serializers.Serializer):
 
         try:
             tag = Tag.objects.get(id=tag_id)
-        except Tag.DoesNotExist:
-            raise serializers.ValidationError({"tag_id": "No tag with this id"})
+        except (Tag.DoesNotExist, ValueError):
+            raise serializers.ValidationError({"detail": "Ur tag id is not correct"})
 
         if tag.user != user:
             raise serializers.ValidationError(
@@ -186,6 +186,7 @@ class IconUploadSerializer(serializers.Serializer):
         file_path = default_storage.save(f"icons/{file_name}", icon)
 
         # Update tag with new icon path
+
         tag.icon = file_path
         tag.save()
 

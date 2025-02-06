@@ -42,3 +42,12 @@ class NoteAndTagThrottleWrite(UserRateThrottle):
         if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
             return super().allow_request(request, view)
         return True  # Allow other requests
+
+
+class IconThrottle(SimpleRateThrottle):
+    scope = "icon"
+
+    def get_cache_key(self, request, view):
+        if request.user.is_authenticated:
+            return f"throttle_user_{request.user.pk}"
+        return None

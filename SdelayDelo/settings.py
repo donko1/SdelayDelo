@@ -141,6 +141,7 @@ REST_FRAMEWORK = {
         "whoami": "3/m",
         "note_and_tag_read": "300/m",
         "note_and_tag_write": "30/m",
+        "icon": "5/min",
     },
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
     "DEFAULT_VERSION": "v1",
@@ -153,6 +154,7 @@ if TESTING or DEBUG:
         "whoami": None,
         "anon": None,
         "user": None,
+        "icon": None,
         "note_and_tag_read": None,
         "note_and_tag_write": None,
     }
