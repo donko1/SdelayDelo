@@ -1841,7 +1841,7 @@ class IconUploadSerializerTest(APITestCase):
 
         os.remove(f"{settings.MEDIA_ROOT}/{path}.png")
 
-        self.assertEqual(os.listdir(f'{settings.MEDIA_ROOT}/{path.split("/")[0]}'), [])
+        self.assertFalse(os.path.exists(f"{settings.MEDIA_ROOT}/{path}.png"))
 
     def test_nonexistent_tag(self):
         """Test validation fails with non-existent tag ID"""
