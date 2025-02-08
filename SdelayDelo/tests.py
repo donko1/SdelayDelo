@@ -2,12 +2,23 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.conf import settings
 from django.utils.timezone import now
+from django.contrib.staticfiles.testing import StaticLiveServerTestCase
+
+from selenium.webdriver import Chrome, ChromeOptions
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
 
 from rest_framework.test import APIClient
 
 from datetime import timedelta
+import tempfile
+import os
 
 from freezegun import freeze_time
+
+
+media_root = settings.MEDIA_ROOT
 
 
 class ErrorTrackingMiddlewareTest(TestCase):
@@ -88,3 +99,87 @@ class ErrorTrackingMiddlewareTest(TestCase):
         with freeze_time(unban_time):
             response = self.simulate_request(200)
             self.assertNotEqual(response.status_code, 403)  # Ban lifted
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp(), MEDIA_URL="/media/")
+class MediaFileTests(StaticLiveServerTestCase):
+    """
+    Test class for verifying media file serving functionality.
+
+    Attributes:
+        selenium (WebDriver): Instance of Chrome WebDriver
+        media_root (str): Path to temporary media directory
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """
+        Class-level setup method:
+        - Initializes Chrome WebDriver with automatic driver management
+        - Creates temporary media directory structure
+        - Generates test PNG file
+        """
+        super().setUpClass()
+
+        # Configure Chrome WebDriver with automatic driver installation
+        service = Service(ChromeDriverManager().install())
+        options = ChromeOptions()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
+        cls.selenium = Chrome(service=service, options=options)
+
+        # Create test media directory and sample file
+        cls.media_root = settings.MEDIA_ROOT  # Fixed: Access via django.conf.settings
+        icons_dir = os.path.join(cls.media_root, "icons")
+        os.makedirs(icons_dir, exist_ok=True)
+
+        # Create minimal valid PNG file
+        test_png_path = os.path.join(icons_dir, "test.png")
+        with open(test_png_path, "wb") as f:
+            f.write(
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        """
+        Class-level teardown method:
+        - Quits WebDriver instance
+        - Cleans up parent class resources
+        """
+        cls.selenium.quit()
+        super().tearDownClass()
+
+    def test_existing_media_file(self):
+        """
+        Verify successful serving of existing media file:
+        - Access test PNG file via URL
+        - Check correct Content-Type header
+        """
+        url = f"{self.live_server_url}/media/icons/test.png"
+        self.selenium.get(url)
+
+        # Verify correct content type using JavaScript execution
+        content_type = self.selenium.execute_script("return document.contentType")
+        self.assertEqual(content_type, "image/png")
+
+    def test_non_existing_media_file(self):
+        """
+        Verify proper error handling for non-existent files:
+        - Access invalid media URL
+        - Check 404 status code
+        - Verify error message presence
+        """
+        url = f"{self.live_server_url}/media/non-existed-file"
+        self.selenium.get(url)
+
+        # Get performance entry for status code verification
+        performance = self.selenium.execute_script(
+            "return window.performance.getEntries()[0]"
+        )
+        self.assertEqual(performance["responseStatus"], 404)
+
+        # Check for error message in page content
+        self.assertIn("Not Found", self.selenium.page_source)

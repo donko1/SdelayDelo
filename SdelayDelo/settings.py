@@ -172,6 +172,7 @@ except SyntaxError:
 
 ICON_MEDIA_PATH = "icons"
 MEDIA_ROOT = "media"
+MEDIA_URL = "/media/"
 
 if TESTING:
     from .settings_test import *
