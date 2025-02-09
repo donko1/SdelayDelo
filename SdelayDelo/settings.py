@@ -12,9 +12,15 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import sys
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+LOG_FILE = os.path.join(BASE_DIR, "logs", "debug.log")
+
+# Создайте папку logs если её нет
+if not os.path.exists(os.path.dirname(LOG_FILE)):
+    os.makedirs(os.path.dirname(LOG_FILE))
 
 
 # Quick-start development settings - unsuitable for production
@@ -75,6 +81,57 @@ WSGI_APPLICATION = "SdelayDelo.wsgi.application"
 ERROR_THRESHOLD = 10
 BAN_DURATION_MINUTES = 3 * 60
 ERROR_WINDOW_MINUTES = 10
+
+LOGGING = {
+    "filters": {
+        "myapp_filter": {
+            "()": "django.utils.log.CallbackFilter",
+            "callback": lambda record: record.name.startswith(("SdelayDelo", "tasks")),
+        }
+    },
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_FILE,
+            "maxBytes": 1024 * 1024 * 5,  # 5 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+            "filters": ["myapp_filter"],
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+        "django.request": {
+            "handlers": ["file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "SdelayDelo": {
+            "handlers": ["file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "tasks": {
+            "handlers": ["file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+    },
+}
 
 
 # Database
