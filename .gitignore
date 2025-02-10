@@ -6,5 +6,6 @@ __pycache__/
 .vscode/
 *.sqlite3
 *.log
+logs/*
 media/*
 !/media/icons/test.png
