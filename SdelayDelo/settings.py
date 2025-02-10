@@ -56,6 +56,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "SdelayDelo.middlewares.ErrorTrackingMiddleware",
+    "SdelayDelo.middlewares.MediaServerMiddleware",
 ]
 
 ROOT_URLCONF = "SdelayDelo.urls"
