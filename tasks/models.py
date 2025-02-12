@@ -9,11 +9,12 @@ from django.utils import timezone
 import hashlib
 import uuid
 from datetime import timedelta
-
-from dateutil.relativedelta import relativedelta
+import logging
 
 
 from .validators import validate_hex_color
+
+logger = logging.getLogger(__name__)
 
 
 class custom_user(AbstractUser):
@@ -127,15 +128,19 @@ class TokenToEmail(models.Model):
         """
         if not self.code:
             self.code = get_random_string(length=6, allowed_chars="0123456789")
+            logger.debug(f"Generated verification code for {self.email}: {self.code}")
         if not self.token_hash:
             raw_token = str(uuid.uuid4())  # Generate a unique raw token
             self.salt = get_random_string(32)  # Generate a unique salt
             self.token_hash = self.hash_token(raw_token, self.salt)
+            logger.debug(f"Generated token hash for {self.email}")
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(
                 days=1
             )  # Default expiration: 1 day
+            logger.debug(f"Set expiration date for {self.email}: {self.expires_at}")
         super().save(*args, **kwargs)
+        logger.info(f"Saved TokenToEmail for {self.email}")
 
     @staticmethod
     def hash_token(token, salt=None):
@@ -152,7 +157,9 @@ class TokenToEmail(models.Model):
         salt = salt or ""
         secret_key = settings.SECRET_KEY.encode()
         token_with_salt = token.encode() + salt.encode()
-        return hashlib.sha256(secret_key + token_with_salt).hexdigest(), salt
+        hash_result = hashlib.sha256(secret_key + token_with_salt).hexdigest()
+        logger.debug(f"Hashed token with salt: {salt}")
+        return hash_result, salt
 
     def send_verification_email(self):
         """
@@ -160,7 +167,9 @@ class TokenToEmail(models.Model):
         """
         subject = "Verification Code for Your Account"
         message = f"Your verification code is: {self.code}"
+        logger.debug(f"Sending verification code to {self.email}")
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [self.email])
+        logger.info(f"Sent verification email to {self.email}")
 
     def validate_email(self, code):
         """
@@ -173,8 +182,9 @@ class TokenToEmail(models.Model):
         - bool: True if the code is correct and the token is not expired; False otherwise.
         """
         if self.code == code and timezone.now() <= self.expires_at:
-
+            logger.info(f"Email {self.email} successfully verified")
             return True
+        logger.debug(f"Invalid or expired code for {self.email}")
         return False
 
     def __str__(self):
@@ -186,168 +196,3 @@ class TokenToEmail(models.Model):
     class Meta:
         verbose_name = "Токен для подтверждения почты"
         verbose_name_plural = "Токены для подтверждения почты"
-
-
-# class Notification(models.Model): # TODO: release this model
-#     """
-#     Represents a user notification with scheduling and recurrence capabilities.
-
-#     Attributes:
-#         user (ForeignKey): Recipient of the notification
-#         title (CharField): Short description of the notification
-#         content (TextField): Detailed message content
-#         created_at (DateTimeField): Initial creation timestamp
-#         is_read (BooleanField): Read status flag
-#         is_repeating (BooleanField): Recurrence activation flag
-#         repeat_type (CharField): Type of recurrence pattern
-#         repeat_params (JSONField): Custom recurrence parameters
-#         next_notification_date (DateTimeField): Next scheduled occurrence
-#         last_notification_date (DateTimeField): Last actual dispatch time
-#         is_active (BooleanField): Active status flag
-#     """
-
-#     REPEAT_TYPES = (
-#         ("daily", "Daily"),
-#         ("weekly", "Weekly"),
-#         ("monthly", "Monthly"),
-#         ("yearly", "Yearly"),
-#         ("custom", "Custom Schedule"),
-#     )
-
-#     user = models.ForeignKey(
-#         settings.AUTH_USER_MODEL,
-#         on_delete=models.CASCADE,
-#         related_name="notifications",
-#         verbose_name="User",
-#         help_text="Recipient of the notification",
-#     )
-#     title = models.CharField(
-#         max_length=255,
-#         verbose_name="Title",
-#         help_text="Short description (max 255 chars)",
-#     )
-#     content = models.TextField(
-#         verbose_name="Content", help_text="Detailed message body"
-#     )
-#     created_at = models.DateTimeField(
-#         auto_now_add=True,
-#         verbose_name="Creation Date",
-#         help_text="Initial creation timestamp",
-#     )
-#     is_read = models.BooleanField(
-#         default=False,
-#         verbose_name="Read Status",
-#         help_text="Has the user viewed the notification?",
-#     )
-#     is_repeating = models.BooleanField(
-#         default=False,
-#         verbose_name="Repeating",
-#         help_text="Does this notification recur?",
-#     )
-#     repeat_type = models.CharField(
-#         max_length=10,
-#         choices=REPEAT_TYPES,
-#         null=True,
-#         blank=True,
-#         verbose_name="Repeat Type",
-#         help_text="Select recurrence pattern",
-#     )
-#     repeat_params = models.JSONField(
-#         null=True,
-#         blank=True,
-#         verbose_name="Repeat Parameters",
-#         help_text="Custom parameters in JSON format. For custom type, use: "
-#         '{"interval": number, "unit": "days|weeks|months|years"}',
-#     )
-#     next_notification_date = models.DateTimeField(
-#         null=True,
-#         blank=True,
-#         verbose_name="Next Occurrence",
-#         help_text="Next scheduled dispatch time",
-#     )
-#     last_notification_date = models.DateTimeField(
-#         null=True,
-#         blank=True,
-#         verbose_name="Last Sent",
-#         help_text="Timestamp of most recent dispatch",
-#     )
-#     is_active = models.BooleanField(
-#         default=True,
-#         verbose_name="Active",
-#         help_text="Is this notification currently active?",
-#     )
-
-#     def __str__(self):
-#         """String representation of the notification"""
-#         return f"{self.title} - {self.user.username}"
-
-#     def save(self, *args, **kwargs):
-#         """
-#         Override save method to handle initial scheduling for repeating notifications.
-#         Sets next_notification_date if creating a new repeating notification.
-#         """
-#         if not self.pk and self.is_repeating:
-#             self.next_notification_date = self.created_at or timezone.now()
-#         super().save(*args, **kwargs)
-
-#     def update_next_notification(self):
-#         """
-#         Calculate and update the next scheduled date based on recurrence rules.
-#         Supports predefined intervals and custom parameters.
-#         """
-#         if not self.is_repeating or not self.is_active:
-#             return
-
-#         now = timezone.now()
-#         last_date = self.next_notification_date or now
-
-#         if self.repeat_type == "daily":
-#             next_date = last_date + relativedelta(days=1)
-#         elif self.repeat_type == "weekly":
-#             next_date = last_date + relativedelta(weeks=1)
-#         elif self.repeat_type == "monthly":
-#             next_date = last_date + relativedelta(months=1)
-#         elif self.repeat_type == "yearly":
-#             next_date = last_date + relativedelta(years=1)
-#         elif self.repeat_type == "custom" and self.repeat_params:
-#             # Custom interval handling
-#             interval = self.repeat_params.get("interval", 1)
-#             unit = self.repeat_params.get("unit", "days")
-#             if unit.endswith("s"):  # Ensure plural form
-#                 unit = unit.rstrip("s")
-#             next_date = last_date + relativedelta(**{f"{unit}s": interval})
-#         else:
-#             return
-
-#         if next_date > now:
-#             self.next_notification_date = next_date
-#             self.save()
-
-#     def send_notification(self):
-#         """
-#         Main notification dispatch method.
-#         Should be extended with actual delivery logic (email, push, etc).
-#         Updates timestamps and handles recurrence scheduling.
-#         """
-#         # Implement actual delivery mechanism here
-#         # Example: send_email, push_to_websocket, etc
-
-#         self.last_notification_date = timezone.now()
-#         self.save()
-
-#         if self.is_repeating:
-#             self.update_next_notification()
-#         else:
-#             self.is_active = False
-#             self.save()
-
-#     class Meta:
-#         """Metadata options for the Notification model"""
-
-#         verbose_name = "Notification"
-#         verbose_name_plural = "Notifications"
-#         indexes = [
-#             models.Index(fields=["user", "is_active"]),
-#             models.Index(fields=["next_notification_date"]),
-#         ]
-#         ordering = ["-created_at"]

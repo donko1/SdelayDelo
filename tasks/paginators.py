@@ -1,4 +1,7 @@
+import logging
 from rest_framework.pagination import PageNumberPagination
+
+logger = logging.getLogger(__name__)
 
 
 class VersionedPagination(PageNumberPagination):
@@ -18,6 +21,7 @@ class VersionedPagination(PageNumberPagination):
         Paginate queryset only if request version is v2.
         Returns None for other versions to disable pagination.
         """
+        logger.debug(f"Request version:{request.version}")
         if request.version == "v2":
             return super().paginate_queryset(queryset, request, view)
         return None

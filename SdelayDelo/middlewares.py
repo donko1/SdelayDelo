@@ -24,6 +24,7 @@ class MediaServerMiddleware:
         """If media file and blocks if u are not author of media. Not blocks if there is no author"""
 
         self.request = request
+        logger.info(f"Processing request for path: {request.path}")
 
         token_key = self.get_token_key(request)
         self.user = AnonymousUser
@@ -31,6 +32,7 @@ class MediaServerMiddleware:
             try:
                 token = Token.objects.get(key=token_key)
                 self.user = token.user
+                logger.info(f"Authenticated user: {self.user}")
             except Token.DoesNotExist:
                 logger.debug("Token not found in database.")
             except Exception as e:
@@ -41,13 +43,18 @@ class MediaServerMiddleware:
             logger.debug("No token key found in request.")
 
         response = self.get_response(request)
-        logger.debug(f"Get {request.path} from {self.user}")
         if request.path.startswith("/media/"):
+            try:
+                logger.debug(f"Get {self.user} for {response.path}")
+            except:
+                pass
             path_to_media = request.path.replace("/media/", "")
             if not os.path.exists(f"{settings.MEDIA_ROOT}/{path_to_media}"):
+                logger.warning(f"File not found: {path_to_media}")
                 return HttpResponse("File is not existed", status=404)
             tags = Tag.objects.filter(icon=path_to_media)
             if not tags.filter(user=self.user.pk).exists() and tags.exists():
+                logger.warning(f"Access denied for user: {self.user}")
                 return HttpResponse("Access denied", status=403)
 
         return response
@@ -84,16 +91,19 @@ class ErrorTrackingMiddleware:
         if ip_address in self.banned_ips:
             ban_end_time = self.banned_ips[ip_address]
             if current_time > ban_end_time:
+                logger.debug(f"Unban {ip_address}")
                 del self.banned_ips[ip_address]
             else:
+                logger.debug(f"Trying from {ip_address}, but it is banned")
                 return HttpResponse(
-                    "Ur ip has been baned due too many mistakes. Try again later",
+                    "Ur ip has been banned due to too many mistakes. Try again later",
                     status=403,
                 )
 
         # Process the request and log errors if necessary
         response = self.get_response(request)
         if response.status_code >= 400 and response.status_code != 404:
+            logger.error(f"Error response {response.status_code} for IP {ip_address}")
             self.log_error(ip_address, current_time)
         return response
 
@@ -106,6 +116,7 @@ class ErrorTrackingMiddleware:
         ]
         self.error_logs[ip_address].append(current_time)
         if len(self.error_logs[ip_address]) >= self.error_threshold:
+            logger.warning(f"Banning IP {ip_address} due to too many errors")
             self.banned_ips[ip_address] = current_time + timedelta(
                 hours=self.ban_duration_hours
             )

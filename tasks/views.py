@@ -23,6 +23,7 @@ from django.conf import settings
 from django.db.models import Q
 
 import uuid
+import logging
 
 from .models import TokenToEmail, Note, Tag
 from .serializers import (
@@ -43,6 +44,8 @@ from .paginators import VersionedPagination
 
 User = get_user_model()
 
+logger = logging.getLogger(__name__)
+
 
 def format_email(email):
     """format email to fa2 login"""
@@ -59,6 +62,7 @@ def hello_world(request):
     Returns:
         Response: JSON object with a "content" key.
     """
+    logger.info("hello_world endpoint called")
     return Response({"content": "Hello world!"})
 
 
@@ -90,15 +94,18 @@ def check_if_email_registered(request):
 
     """
     if not settings.DEBUG:
+        logger.warning("check_if_email_registered endpoint called in production")
         raise PermissionDenied("This endpoint is disabled in production.")
     email = request.query_params.get("email")
     if not email:
+        logger.error("Email parameter is required for check_if_email_registered")
         return Response(
             {"detail": "Email parameter is required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     email_exists = User.objects.filter(email=email).exists()
+    logger.info(f"Email {email} is registered: {email_exists}")
     return Response({"email_is_registered": email_exists}, status=status.HTTP_200_OK)
 
 
@@ -108,6 +115,7 @@ def check_if_email_registered(request):
 def send_verification_code(request):
     email = request.data.get("email")
     if not email:
+        logger.error("Email is required for send_verification_code")
         return Response(
             {"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST
         )
@@ -115,11 +123,12 @@ def send_verification_code(request):
     try:
         token = TokenToEmail.objects.create(email=email)
         token.send_verification_email()
+        logger.info(f"Verification code sent to {email}")
         return Response(
             {"detail": "Verification code sent."}, status=status.HTTP_200_OK
         )
     except Exception as e:
-        print(e)
+        logger.error(f"Error sending verification code to {email}: {e}")
         return Response(
             {"detail": "An error occurred."}, status=status.HTTP_400_BAD_REQUEST
         )
@@ -135,6 +144,7 @@ def verify_code(request):
     code = request.data.get("code")
 
     if not email or not code:
+        logger.error("Email and code are required for verify_code")
         return Response(
             {"detail": "Email and code are required."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -150,16 +160,19 @@ def verify_code(request):
             token_obj.is_verified = True
             token_obj.save(update_fields=["token_hash", "is_verified"])
 
+            logger.info(f"Email {email} successfully verified")
             return Response(
                 {"message": "Email successfully verified.", "token": raw_token},
                 status=status.HTTP_200_OK,
             )
         else:
+            logger.warning(f"Invalid code or expired token for email {email}")
             return Response(
                 {"detail": "Invalid code or expired token."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
     except TokenToEmail.DoesNotExist:
+        logger.error(f"No token found for email {email}")
         return Response(
             {"detail": "No token found for this email."},
             status=status.HTTP_404_NOT_FOUND,
@@ -177,6 +190,7 @@ def reset_password(request):
     password = request.data.get("new_password")
 
     if not token:
+        logger.error("Registration token is required for reset_password")
         return Response(
             {"detail": "Registration token is required."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -188,12 +202,16 @@ def reset_password(request):
 
         # Ensure the token is verified and not expired
         if not token_obj.is_verified:
+            logger.warning(f"Email {token_obj.email} is not verified")
             return Response(
                 {"detail": "Email is not verified."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if token_obj.expires_at < now():
+            logger.warning(
+                f"Registration token for email {token_obj.email} has expired"
+            )
             return Response(
                 {"detail": "Registration token has expired."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -202,6 +220,7 @@ def reset_password(request):
         user = User.objects.filter(email=token_obj.email).first()
 
         if not user:
+            logger.error(f"User with email {token_obj.email} was not found")
             return Response(
                 {"detail": "User with this email was not found."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -212,19 +231,23 @@ def reset_password(request):
                 user.password = make_password(password)  # Хешируем пароль
                 user.save()
                 token_obj.delete()
+                logger.info(f"Password reset for user {user.username}")
                 return Response(
                     {"detail": "New password has been set"}, status=status.HTTP_200_OK
                 )
             else:
+                logger.warning(f"Password is not valid for user {user.username}")
                 return Response(
                     {"detail": "Password is not valid"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         except ValidationError:
+            logger.warning(f"Password validation failed for user {user.username}")
             return Response(
                 {"detail": "Password is not valid"}, status=status.HTTP_400_BAD_REQUEST
             )
     except TokenToEmail.DoesNotExist:
+        logger.error(f"Invalid registration token for reset_password")
         return Response(
             {"detail": "Invalid registration token."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -240,6 +263,7 @@ def register_user(request):
     token = request.data.get("token")
 
     if not token:
+        logger.error("Registration token is required for register_user")
         return Response(
             {"detail": "Registration token is required."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -251,12 +275,16 @@ def register_user(request):
 
         # Ensure the token is verified and not expired
         if not token_obj.is_verified:
+            logger.warning(f"Email {token_obj.email} is not verified")
             return Response(
                 {"detail": "Email is not verified."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if token_obj.expires_at < now():
+            logger.warning(
+                f"Registration token for email {token_obj.email} has expired"
+            )
             return Response(
                 {"detail": "Registration token has expired."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -273,12 +301,15 @@ def register_user(request):
             # Generate an access token for the user
             user_token = Token.objects.create(user=user)
 
+            logger.info(f"User {user.username} registered successfully")
             return Response(
                 {"access_token": user_token.key}, status=status.HTTP_201_CREATED
             )
         else:
+            logger.error(f"Registration failed for user with token {token}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except TokenToEmail.DoesNotExist:
+        logger.error(f"Invalid registration token for register_user")
         return Response(
             {"detail": "Invalid registration token."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -300,11 +331,13 @@ def change_userinfo(request) -> Response:
 
     if serializer.is_valid():
         serializer.save()  # Calls the `update` method in the serializer
+        logger.info(f"User information updated for {user.username}")
         return Response(
             {"detail": "User information updated successfully."},
             status=status.HTTP_200_OK,
         )
     else:
+        logger.error(f"Failed to update user information for {user.username}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -330,11 +363,15 @@ def login(request):
     if token:
         token_obj = TokenToEmail.objects.get(token_hash=TokenToEmail.hash_token(token))
         if not token_obj.is_verified:
+            logger.warning(f"Email {token_obj.email} is not verified")
             return Response(
                 {"detail": "Email is not verified."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if token_obj.expires_at < now():
+            logger.warning(
+                f"Registration token for email {token_obj.email} has expired"
+            )
             return Response(
                 {"detail": "Registration token has expired."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -348,22 +385,27 @@ def login(request):
             except Token.DoesNotExist:
                 access_token = Token.objects.create(user=user)
 
+            logger.info(f"User {user.username} logged in successfully with token")
             return Response(
                 {"access_token": access_token.key}, status=status.HTTP_200_OK
             )
         else:
+            logger.error(f"Token is not correct for user {user.username}")
             return Response(
                 {"detail": "token is not correct"}, status=status.HTTP_400_BAD_REQUEST
             )
 
     if not password or (username is None and email is None):
+        logger.error("Invalid login data provided")
         return Response({"detail": "Ur data is not correct"}, status=400)
 
     if not check_password(password, user.password):
+        logger.warning(f"Invalid password for user {user.username}")
         return Response({"detail": "Not correct username or password"}, status=400)
 
     if not user.fa_2:
         access_token = Token.objects.get_or_create(user=user)[0]
+        logger.info(f"User {user.username} logged in successfully")
 
         return Response(
             {"access_token": access_token.key},
@@ -374,6 +416,7 @@ def login(request):
     token.send_verification_email()
     url_check_code = reverse("check_code")
     email = format_email(email)
+    logger.info(f"2FA initiated for user {user.username}")
     return Response(
         {"detail": f"Now visit {url_check_code} to continue", "email": email},
         status=202,
@@ -385,6 +428,7 @@ def login(request):
 def who_am_i(request):
     user = request.user
     if request.user.is_authenticated:
+        logger.info(f"who_am_i called by authenticated user {user.username}")
         return Response(
             {
                 "user": {
@@ -397,6 +441,7 @@ def who_am_i(request):
             status=status.HTTP_200_OK,
         )
     else:
+        logger.warning("who_am_i called by unauthenticated user")
         return Response(
             {"detail": "Authentication credentials were not provided."},
             status=status.HTTP_401_UNAUTHORIZED,
@@ -426,6 +471,7 @@ class NoteViewSet(viewsets.ModelViewSet):
         Returns a queryset of notes that belong to the current user.
         """
         user = self.request.user
+        logger.debug(f"Fetching notes for user {user.username}")
         return Note.objects.filter(user=user)
 
     def perform_create(self, serializer):
@@ -434,7 +480,11 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         try:
             serializer.save(user=self.request.user)
+            logger.info(f"Note created for user {self.request.user.username}")
         except Exception as e:
+            logger.error(
+                f"Error creating note for user {self.request.user.username}: {e}"
+            )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_update(self, serializer):
@@ -445,13 +495,24 @@ class NoteViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_object()
             if instance.user != self.request.user:
+                logger.warning(
+                    f"User {self.request.user.username} tried to update a note they do not own"
+                )
                 raise PermissionDenied("You can't update this object, it is not yours!")
             serializer.save()
+            logger.info(f"Note updated for user {self.request.user.username}")
         except PermissionDenied as e:
+            logger.error(
+                f"Permission denied for user {self.request.user.username}: {e}"
+            )
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except ObjectDoesNotExist:
+            logger.error(f"Note not found for user {self.request.user.username}")
             return Response(status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            logger.error(
+                f"Error updating note for user {self.request.user.username}: {e}"
+            )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_destroy(self, instance):
@@ -461,13 +522,24 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         try:
             if instance.user != self.request.user:
+                logger.warning(
+                    f"User {self.request.user.username} tried to delete a note they do not own"
+                )
                 raise PermissionDenied("You can't delete this object, it is not yours!")
             instance.delete()
+            logger.info(f"Note deleted for user {self.request.user.username}")
         except PermissionDenied as e:
+            logger.error(
+                f"Permission denied for user {self.request.user.username}: {e}"
+            )
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except ObjectDoesNotExist:
+            logger.error(f"Note not found for user {self.request.user.username}")
             return Response(status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            logger.error(
+                f"Error deleting note for user {self.request.user.username}: {e}"
+            )
             return Response(
                 {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -479,6 +551,7 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         tag = request.query_params.get("Tag", None)
         if not tag:
+            logger.error("Tag parameter is required for search_by_tag")
             return Response(
                 {"detail": "Tag parameter is required"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -489,8 +562,8 @@ class NoteViewSet(viewsets.ModelViewSet):
         try:
             tag_obj = Tag.objects.get(user=user, pk=tag)
         except:
+            logger.warning(f"Tag {tag} not found for user {user.username}")
             return Response({}, status=status.HTTP_200_OK)
-        print(Note.objects.filter(user=user))
         queryset = Note.objects.filter(user=user).filter(tags=tag)
         queryset = list(queryset)
 
@@ -507,6 +580,7 @@ class NoteViewSet(viewsets.ModelViewSet):
         sorted_queryset = pinned_notes + unpinned_notes
 
         serializer = self.get_serializer(sorted_queryset, many=True)
+        logger.info(f"Returning sorted notes for user {self.request.user.username}")
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], url_path="search")
@@ -518,6 +592,7 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         query = request.query_params.get("query", None)
         if not query:
+            logger.error("Query parameter is required for search")
             return Response(
                 {"detail": "Query parameter is required"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -552,6 +627,9 @@ class NoteViewSet(viewsets.ModelViewSet):
         sorted_queryset = pinned_notes + unpinned_notes
 
         serializer = self.get_serializer(sorted_queryset, many=True)
+        logger.info(
+            f"Returning search results for query '{query}' for user {user.username}"
+        )
         return Response(serializer.data)
 
 
@@ -577,6 +655,7 @@ class TagViewSet(viewsets.ModelViewSet):
         Returns a queryset of tags that belong to the current user.
         """
         user = self.request.user
+        logger.debug(f"Fetching tags for user {user.username}")
         return Tag.objects.filter(user=user)
 
     def perform_create(self, serializer):
@@ -585,7 +664,11 @@ class TagViewSet(viewsets.ModelViewSet):
         """
         try:
             serializer.save(user=self.request.user)
+            logger.info(f"Tag created for user {self.request.user.username}")
         except Exception as e:
+            logger.error(
+                f"Error creating tag for user {self.request.user.username}: {e}"
+            )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_update(self, serializer):
@@ -596,13 +679,24 @@ class TagViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_object()
             if instance.user != self.request.user:
+                logger.warning(
+                    f"User {self.request.user.username} tried to update a tag they do not own"
+                )
                 raise PermissionDenied("You can't update this object, it is not yours!")
             serializer.save()
+            logger.info(f"Tag updated for user {self.request.user.username}")
         except PermissionDenied as e:
+            logger.error(
+                f"Permission denied for user {self.request.user.username}: {e}"
+            )
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except ObjectDoesNotExist:
+            logger.error(f"Tag not found for user {self.request.user.username}")
             return Response(status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            logger.error(
+                f"Error updating tag for user {self.request.user.username}: {e}"
+            )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_destroy(self, instance):
@@ -612,13 +706,24 @@ class TagViewSet(viewsets.ModelViewSet):
         """
         try:
             if instance.user != self.request.user:
+                logger.warning(
+                    f"User {self.request.user.username} tried to delete a tag they do not own"
+                )
                 raise PermissionDenied("You can't delete this object, it is not yours!")
             instance.delete()
+            logger.info(f"Tag deleted for user {self.request.user.username}")
         except PermissionDenied as e:
+            logger.error(
+                f"Permission denied for user {self.request.user.username}: {e}"
+            )
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except ObjectDoesNotExist:
+            logger.error(f"Tag not found for user {self.request.user.username}")
             return Response(status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            logger.error(
+                f"Error deleting tag for user {self.request.user.username}: {e}"
+            )
             return Response(
                 {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -655,6 +760,7 @@ class IconViewSet(viewsets.ViewSet):
         )
         serializer.is_valid(raise_exception=True)
         tag = serializer.save()
+        logger.info(f"Icon uploaded for tag {tag.pk} by user {request.user.username}")
         return Response(
             {"tag_id": tag.pk, "icon": tag.icon}, status=status.HTTP_201_CREATED
         )
@@ -681,6 +787,9 @@ class IconViewSet(viewsets.ViewSet):
         )
         serializer.is_valid(raise_exception=True)
         updated_tag = serializer.update_icon()
+        logger.info(
+            f"Icon updated for tag {updated_tag.pk} by user {request.user.username}"
+        )
         return Response(
             {"detail": "Icon content updated", "icon_path": updated_tag.icon},
             status=status.HTTP_200_OK,
@@ -703,4 +812,5 @@ class IconViewSet(viewsets.ViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.delete()
+        logger.info(f"Icon deleted for tag by user {request.user.username}")
         return Response(status=status.HTTP_204_NO_CONTENT)

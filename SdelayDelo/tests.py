@@ -77,7 +77,7 @@ class ErrorTrackingMiddlewareTest(TestCase):
         # The IP should now be banned
         response = self.simulate_request(400)
         self.assertEqual(response.status_code, 403)
-        self.assertIn("Ur ip has been baned", response.content.decode())
+        self.assertIn("Ur ip has been banned", response.content.decode())
 
     @freeze_time("2025-01-01 12:00:00")
     @override_settings(

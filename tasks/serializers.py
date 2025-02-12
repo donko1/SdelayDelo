@@ -6,7 +6,7 @@ from django.core.files.storage import default_storage
 
 import uuid
 import os
-
+import logging
 
 from rest_framework import serializers
 
@@ -14,6 +14,8 @@ from .models import Tag, Note
 from .validators import is_hex_color
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 
 class NoteSerializer(serializers.ModelSerializer):
@@ -70,6 +72,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         Validates that the email provided is not already in use.
         """
         if User.objects.filter(email=value).exists():
+            logger.debug(f"Email {value} is already registered.")
             raise ValidationError("This email is already registered.")
         return value
 
@@ -82,6 +85,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data["email"],
             password=validated_data["password"],
         )
+        logger.info(f"Created new user: {user.username}")
         return user
 
 
@@ -116,7 +120,9 @@ class TagSerializer(serializers.ModelSerializer):
         Raises:
             serializers.ValidationError: If the color code is not valid.
         """
+        logger.debug(f"Validating {value} as hex-colour...")
         if not is_hex_color(value):
+            logger.error(f"Invalid HEX color code: {value}")
             raise serializers.ValidationError("Invalid HEX color code.")
         return value
 
@@ -146,6 +152,7 @@ class UserUpdateSerializer(
             "fa_2", instance.fa_2
         )  # Use instance value if not provided
         instance.save()
+        logger.info(f"Updated user: {instance.username}")
         return instance
 
 
@@ -165,9 +172,11 @@ class IconUploadSerializer(serializers.Serializer):
         try:
             tag = Tag.objects.get(id=tag_id)
         except (Tag.DoesNotExist, ValueError):
+            logger.error(f"Tag with id {tag_id} does not exist.")
             raise serializers.ValidationError({"detail": "Ur tag id is not correct"})
 
         if tag.user != user:
+            logger.error(f"User {user} does not have rights to change tag {tag_id}.")
             raise serializers.ValidationError(
                 {"tag_id": "U dont have rights to change it"}, code="permission_denied"
             )
@@ -187,10 +196,12 @@ class IconUploadSerializer(serializers.Serializer):
             f"{settings.ICON_MEDIA_PATH}/{file_name}", icon
         )
 
-        # Update tag with new icon path
+        logger.debug(f"saving icon to {file_path}")
 
+        # Update tag with new icon path
         tag.icon = file_path
         tag.save()
+        logger.info(f"Updated icon for tag {tag.title}({tag.user})")
 
         return tag
 
@@ -201,9 +212,12 @@ class IconUploadSerializer(serializers.Serializer):
         """
         tag = self.validated_data.get("tag")
         if not tag.icon:
+            logger.debug(f"No icon to delete for tag {tag.title}({tag.user})")
             return
 
         file_path = tag.icon
+
+        logger.debug(f"Deleting {tag.icon}")
 
         # Delete physical file
         if default_storage.exists(file_path):
@@ -212,6 +226,7 @@ class IconUploadSerializer(serializers.Serializer):
         # Clear icon path in database
         tag.icon = None
         tag.save()
+        logger.info(f"Deleted icon for tag {tag.title}({tag.user})")
 
     def update_icon(self):
         """
@@ -221,6 +236,9 @@ class IconUploadSerializer(serializers.Serializer):
         """
         tag = self.validated_data.get("tag")
         if not tag.icon:
+            logger.error(
+                f"Tag {tag.title}({tag.user}) does not have an existing icon to update."
+            )
             raise serializers.ValidationError(
                 {"icon": "Tag does not have an existing icon to update."}
             )
@@ -235,6 +253,10 @@ class IconUploadSerializer(serializers.Serializer):
         # Save new content to existing path
         default_storage.save(file_path, icon)
 
+        logger.debug(f"Updating icon for {tag.title}({tag.user})")
+
         # Persist any potential changes to tag (though icon path remains same)
         tag.save()
+        logger.info(f"Updated icon for tag {tag.title}({tag.user})")
+
         return tag
