@@ -222,9 +222,12 @@ class NoteModelTest(TestCase):
         self.assertEqual(str(note), "Sample Note")
 
     def test_note_with_multiple_tags(self):
-        """Test that a Note can have multiple tags assigned."""
+        """Test that a Note can have multiple tags assigned and tests if is_archived field is working."""
         note = Note.objects.create(
-            user=self.user, title="Tagged Note", description="This note is tagged."
+            user=self.user,
+            title="Tagged Note",
+            description="This note is tagged.",
+            is_archived=True,
         )
         note.tags.add(self.tag1, self.tag2)
         self.assertEqual(note.tags.count(), 2)

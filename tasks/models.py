@@ -33,6 +33,7 @@ class Tag(models.Model):
     - user: The owner of the tag.
     - colour: The color associated with the tag (e.g., #FF0000).
     - icon: An optional icon name for the tag.
+    - is_archived: status of archived or not the note. Default value is False
     """
 
     title = models.CharField(max_length=255, verbose_name="Заголовок")
@@ -78,6 +79,13 @@ class Note(models.Model):
         Tag, related_name="notes", blank=True, verbose_name="Тэги"
     )
     is_pinned = models.BooleanField(default=False, verbose_name="Статус закреплённости")
+
+    is_archived = models.BooleanField(
+        default=False,
+        blank=False,
+        null=False,
+        verbose_name="Статус нахождения в архиве",
+    )
 
     def __str__(self):
         return self.title

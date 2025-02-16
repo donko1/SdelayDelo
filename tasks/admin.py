@@ -16,7 +16,7 @@ class TagAdmin(admin.ModelAdmin):
 class NoteAdmin(admin.ModelAdmin):
     """Admin interface for Note model."""
 
-    list_display = ("title", "user", "date_create", "date_changed")
+    list_display = ("title", "user", "date_create", "date_changed", "is_archived")
     search_fields = ("title", "description", "user__username")
     list_filter = ("user", "tags")
     filter_horizontal = ("tags",)
