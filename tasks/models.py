@@ -55,6 +55,29 @@ class Tag(models.Model):
         return self.title
 
 
+class UnarchivedNoteQuerySet(models.QuerySet):
+    """Queryset for note to add unarchived and archived method"""
+
+    def unarchived(self):
+        return self.filter(is_archived=False)
+
+    def archived(self):
+        return self.filter(is_archived=True)
+
+
+class NoteManager(models.Manager):
+    """Manager for note to add unarchived and archived method"""
+
+    def get_queryset(self):
+        return UnarchivedNoteQuerySet(self.model, using=self._db)
+
+    def unarchived(self):
+        return self.get_queryset().unarchived()
+
+    def archived(self):
+        return self.get_queryset().archived()
+
+
 class Note(models.Model):
     """
     Represents a note created by a user.
@@ -66,6 +89,8 @@ class Note(models.Model):
     - date_changed: The date and time when the note was last modified.
     - tags: Tags associated with the note (many-to-many relationship).
     """
+
+    objects = NoteManager()
 
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notes", verbose_name="Создатель"

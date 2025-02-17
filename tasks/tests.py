@@ -185,6 +185,69 @@ class NoteModelTest(TestCase):
         self.assertIn(self.tag1, note.tags.all())
         self.assertIn(self.tag2, note.tags.all())
 
+    def test_unarchived_notes(self):
+        """
+        Test that the 'unarchived' method returns only non-archived notes.
+        """
+
+        note1 = Note.objects.create(
+            user=self.user,
+            title="Note 1",
+            description="Description 1",
+            is_archived=False,
+        )
+        note2 = Note.objects.create(
+            user=self.user,
+            title="Note 2",
+            description="Description 2",
+            is_archived=True,
+        )
+        note3 = Note.objects.create(
+            user=self.user,
+            title="Note 3",
+            description="Description 3",
+            is_archived=False,
+        )
+
+        unarchived_notes = Note.objects.unarchived()
+
+        self.assertEqual(unarchived_notes.count(), 2)
+        for note in unarchived_notes:
+            self.assertFalse(note.is_archived)
+        self.assertIn(note1, unarchived_notes)
+        self.assertIn(note3, unarchived_notes)
+        self.assertNotIn(note2, unarchived_notes)
+
+    def test_archived_notes(self):
+        """
+        Test that the 'archived' method returns only archived notes.
+        """
+        note1 = Note.objects.create(
+            user=self.user,
+            title="Note 1",
+            description="Description 1",
+            is_archived=False,
+        )
+        note2 = Note.objects.create(
+            user=self.user,
+            title="Note 2",
+            description="Description 2",
+            is_archived=True,
+        )
+        note3 = Note.objects.create(
+            user=self.user,
+            title="Note 3",
+            description="Description 3",
+            is_archived=False,
+        )
+        archived_notes = Note.objects.archived()
+        self.assertEqual(archived_notes.count(), 1)
+        for note in archived_notes:
+            self.assertTrue(note.is_archived)
+        self.assertIn(note2, archived_notes)
+        self.assertNotIn(note1, archived_notes)
+        self.assertNotIn(note3, archived_notes)
+
     def test_note_timestamps(self):
         """Test that Note timestamps are set correctly."""
         note = Note.objects.create(
