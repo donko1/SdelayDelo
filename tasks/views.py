@@ -1,3 +1,4 @@
+from platform import architecture
 from rest_framework.decorators import (
     api_view,
     throttle_classes,
@@ -472,6 +473,8 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         logger.debug(f"Fetching notes for user {user.username}")
+        if self.request.version:
+            return Note.objects.filter(user=user, is_archived=False)
         return Note.objects.filter(user=user)
 
     def perform_create(self, serializer):
@@ -543,6 +546,29 @@ class NoteViewSet(viewsets.ModelViewSet):
             return Response(
                 {"detail": "An error occurred"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=False, methods=["get"], url_path="unarchived")
+    def shows_unarchived(self, request, version):
+        """
+        Shows only unarchived notes
+        """
+        logger.debug(f"Version for unarchived is {version}")
+        if version in [
+            "v3",
+        ]:
+            user = self.request.user
+            logger.debug(f"Fetching unarchived notes for user {user.username}")
+
+            queryset = Note.objects.filter(user=user, is_archived=True)
+            page = self.paginate_queryset(queryset)
+            serializer = self.get_serializer(page, many=True)
+
+            return self.get_paginated_response(serializer.data)
+
+        return Response(
+            {"detail": "This method is only in v3+ versions"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     @action(detail=False, methods=["get"], url_path="search-by-tag")
     def search_by_tag(self, request):

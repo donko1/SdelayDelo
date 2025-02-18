@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class VersionedPagination(PageNumberPagination):
     """
-    Custom pagination class that activates only for API version v2.
+    Custom pagination class that activates only for API version v2 and v3.
     - Default page size: 25
     - Client can override via `page_size` query param
     - Maximum allowed page size: 100
@@ -18,10 +18,10 @@ class VersionedPagination(PageNumberPagination):
 
     def paginate_queryset(self, queryset, request, view=None):
         """
-        Paginate queryset only if request version is v2.
+        Paginate queryset only if request version is v2 or v3.
         Returns None for other versions to disable pagination.
         """
         logger.debug(f"Request version:{request.version}")
-        if request.version == "v2":
+        if request.version in ["v2", "v3"]:
             return super().paginate_queryset(queryset, request, view)
         return None

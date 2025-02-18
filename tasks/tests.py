@@ -1793,6 +1793,88 @@ class NoteTestViewSetV2(APITestCase):
         self.assertEqual(len(response.data), 30)
 
 
+class NoteTestViewSetV3(APITestCase):
+    """Tsts for NoteViewSet API v3 with achived"""
+
+    def setUp(self):
+        self.user = User.objects.create(
+            username="testuser", email="example@example.com", password="qwerty123"
+        )
+        self.access_token_user = Token.objects.create(user=self.user).key
+        self.header_user = {"Authorization": f"Token {self.access_token_user}"}
+
+        self.note_1 = Note.objects.create(
+            user=self.user,
+            title=f"Note 1",
+            description=f"Description 1",
+        )
+
+        self.note_2 = Note.objects.create(
+            user=self.user,
+            title=f"Note 2",
+            description=f"Description 2",
+        )
+
+        self.note_3 = Note.objects.create(
+            user=self.user,
+            title=f"Note 3",
+            description=f"Description 3",
+            is_archived=True,
+        )
+
+        self.note_4 = Note.objects.create(
+            user=self.user,
+            title=f"Note 4",
+            description=f"Description 4",
+            is_archived=True,
+        )
+
+    def test_list(self):
+        """Tests if listing currently and pagination"""
+        url = reverse("note-list", kwargs={"version": "v3"})
+        response = self.client.get(url, headers=self.header_user)
+
+        self.assertEqual(response.status_code, 200)
+        # Check pagination keys exist
+        self.assertIn("count", str(response.data))
+        self.assertIn("next", str(response.data))
+        self.assertIn("results", str(response.data))
+
+        # Checks if only unarchived shows
+        self.assertIn("Note 1", str(response.data))
+        self.assertIn("Note 2", str(response.data))
+        self.assertNotIn("Note 3", str(response.data))
+        self.assertNotIn("Note 4", str(response.data))
+
+    def test_unarchived(self):
+        """Tests if unarchived in current pages are currently displaying"""
+        url = reverse("note-list", kwargs={"version": "v3"})
+        url += "unarchived/"
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(response.status_code, 200)
+        # Check pagination keys exist
+        self.assertIn("count", str(response.data))
+        self.assertIn("next", str(response.data))
+        self.assertIn("results", str(response.data))
+
+        # Checks if only archived shows
+        self.assertNotIn("Note 1", str(response.data))
+        self.assertNotIn("Note 2", str(response.data))
+        self.assertIn("Note 3", str(response.data))
+        self.assertIn("Note 4", str(response.data))
+
+    def test_unarchived_v2(self):
+        """Tests if unarchived in not current pages is fetching error"""
+        url = reverse("note-list", kwargs={"version": "v2"})
+        url += "unarchived/"
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 400)
+
+        self.assertIn("This method is only in v3+ versions", str(response.data))
+
+
 class IconUploadSerializerTest(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", password="testpass")
