@@ -1766,7 +1766,7 @@ class NoteTestViewSetV2(APITestCase):
 
     def test_v2_pagination(self):
         """Verify v2 list endpoint returns paginated results (25 per page)."""
-        url = reverse("note-list", kwargs={"version": "v2"})
+        url = reverse("note_v2-list")
         response = self.client.get(url, headers=self.header_user)
 
         self.assertEqual(response.status_code, 200)
@@ -1783,7 +1783,7 @@ class NoteTestViewSetV2(APITestCase):
 
     def test_v1_no_pagination(self):
         """Verify v1 list endpoint doesn't have pagination."""
-        url = reverse("note-list", kwargs={"version": "v1"})
+        url = reverse("note_v1-list")
         response = self.client.get(url, headers=self.header_user)
 
         self.assertEqual(response.status_code, 200)
@@ -1831,7 +1831,7 @@ class NoteTestViewSetV3(APITestCase):
 
     def test_list(self):
         """Tests if listing currently and pagination"""
-        url = reverse("note-list", kwargs={"version": "v3"})
+        url = reverse("note_v3-list")
         response = self.client.get(url, headers=self.header_user)
 
         self.assertEqual(response.status_code, 200)
@@ -1848,7 +1848,7 @@ class NoteTestViewSetV3(APITestCase):
 
     def test_unarchived(self):
         """Tests if unarchived in current pages are currently displaying"""
-        url = reverse("note-list", kwargs={"version": "v3"})
+        url = reverse("note_v3-list")
         url += "unarchived/"
         response = self.client.get(url, headers=self.header_user)
         self.assertEqual(response.status_code, 200)
@@ -1867,7 +1867,7 @@ class NoteTestViewSetV3(APITestCase):
 
     def test_unarchived_v2(self):
         """Tests if unarchived in not current pages is fetching error"""
-        url = reverse("note-list", kwargs={"version": "v2"})
+        url = reverse("note_v2-list")
         url += "unarchived/"
         response = self.client.get(url, headers=self.header_user)
         self.assertEqual(response.status_code, 400)

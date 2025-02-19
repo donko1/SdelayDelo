@@ -5,7 +5,11 @@ from rest_framework import routers
 from . import views
 
 router = routers.DefaultRouter()
-router.register(r"(?P<version>(v1|v2|v3))/note", views.NoteViewSet, basename="note")
+
+router.register(r"v1/note", views.NoteViewSet, basename="note_v1")
+router.register(r"v2/note", views.NoteViewSetV2, basename="note_v2")
+router.register(r"v3/note", views.NoteViewSetV3, basename="note_v3")
+
 router.register(r"note", views.NoteViewSet, basename="note_default")
 router.register(r"tag", views.TagViewSet, basename="tag")
 router.register(r"icons", views.IconViewSet, basename="icon")

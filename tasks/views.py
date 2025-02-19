@@ -41,7 +41,7 @@ from .throttles import (
     IconThrottle,
 )
 
-from .paginators import VersionedPagination
+from .paginators import NotePagination
 
 User = get_user_model()
 
@@ -465,7 +465,6 @@ class NoteViewSet(viewsets.ModelViewSet):
     serializer_class = NoteSerializer
     permission_classes = [IsAuthenticated]
     throttle_classes = [NoteAndTagThrottleRead, NoteAndTagThrottleWrite]
-    pagination_class = VersionedPagination
 
     def get_queryset(self):
         """
@@ -473,8 +472,6 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         logger.debug(f"Fetching notes for user {user.username}")
-        if self.request.version:
-            return Note.objects.filter(user=user, is_archived=False)
         return Note.objects.filter(user=user)
 
     def perform_create(self, serializer):
@@ -548,115 +545,49 @@ class NoteViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=False, methods=["get"], url_path="unarchived")
-    def shows_unarchived(self, request, version):
-        """
-        Shows only unarchived notes
-        """
-        logger.debug(f"Version for unarchived is {version}")
-        if version in [
-            "v3",
-        ]:
-            user = self.request.user
-            logger.debug(f"Fetching unarchived notes for user {user.username}")
-
-            queryset = Note.objects.filter(user=user, is_archived=True)
-            page = self.paginate_queryset(queryset)
-            serializer = self.get_serializer(page, many=True)
-
-            return self.get_paginated_response(serializer.data)
-
+    def shows_unarchived(self, request):
         return Response(
             {"detail": "This method is only in v3+ versions"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @action(detail=False, methods=["get"], url_path="search-by-tag")
-    def search_by_tag(self, request):
-        """
-        Searches for note based on tag.
-        """
-        tag = request.query_params.get("Tag", None)
-        if not tag:
-            logger.error("Tag parameter is required for search_by_tag")
-            return Response(
-                {"detail": "Tag parameter is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
-        tag = int(tag)
+class NoteViewSetV2(NoteViewSet):
+    """
+    ViewSet for the Note model, version 2.
+    Inherits from NoteViewSet and adds additional functionality.
+    """
+
+    pagination_class = NotePagination
+
+    def get_queryset(self):
+        """
+        Returns a queryset of notes that belong to the current user and are not archived.
+        """
         user = self.request.user
-        try:
-            tag_obj = Tag.objects.get(user=user, pk=tag)
-        except:
-            logger.warning(f"Tag {tag} not found for user {user.username}")
-            return Response({}, status=status.HTTP_200_OK)
-        queryset = Note.objects.filter(user=user).filter(tags=tag)
-        queryset = list(queryset)
+        logger.debug(f"Fetching notes for user {user.username}")
+        return Note.objects.filter(user=user, is_archived=False)
 
-        queryset.sort(
-            key=lambda note: (-note.is_pinned, note.date_changed), reverse=True
-        )
 
-        pinned_notes = [note for note in queryset if note.is_pinned]
-        unpinned_notes = [note for note in queryset if not note.is_pinned]
+class NoteViewSetV3(NoteViewSetV2):
+    """
+    ViewSet for the Note model, version 3.
+    Inherits from NoteViewSetV2 and adds additional functionality.
+    """
 
-        pinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
-        unpinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
-
-        sorted_queryset = pinned_notes + unpinned_notes
-
-        serializer = self.get_serializer(sorted_queryset, many=True)
-        logger.info(f"Returning sorted notes for user {self.request.user.username}")
-        return Response(serializer.data)
-
-    @action(detail=False, methods=["get"], url_path="search")
-    def search(self, request):
+    @action(detail=False, methods=["get"], url_path="unarchived")
+    def shows_unarchived(self, request):
         """
-        Searches for notes based on the query string.
-        The search is performed on the title and content fields.
-        Returns a list of notes that match the query.
+        Shows only unarchived notes
         """
-        query = request.query_params.get("query", None)
-        if not query:
-            logger.error("Query parameter is required for search")
-            return Response(
-                {"detail": "Query parameter is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         user = self.request.user
-        queryset = Note.objects.filter(user=user).filter(
-            Q(title__icontains=query) | Q(description__icontains=query)
-        )
+        logger.debug(f"Fetching unarchived notes for user {user.username}")
 
-        tag = Tag.objects.filter(user=user).filter(Q(title__icontains=query))
-        queryset = Note.objects.filter(user=user)
+        queryset = Note.objects.filter(user=user, is_archived=True)
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
 
-        if tag:
-            notes_by_tag = Note.objects.filter(tags__in=tag)
-            for note in notes_by_tag:
-                if note not in queryset:
-                    queryset = queryset.union(Note.objects.filter(pk=note.pk))
-
-        queryset = list(queryset)
-
-        queryset.sort(
-            key=lambda note: (-note.is_pinned, note.date_changed), reverse=True
-        )
-
-        pinned_notes = [note for note in queryset if note.is_pinned]
-        unpinned_notes = [note for note in queryset if not note.is_pinned]
-
-        pinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
-        unpinned_notes.sort(key=lambda note: note.date_changed, reverse=True)
-
-        sorted_queryset = pinned_notes + unpinned_notes
-
-        serializer = self.get_serializer(sorted_queryset, many=True)
-        logger.info(
-            f"Returning search results for query '{query}' for user {user.username}"
-        )
-        return Response(serializer.data)
+        return self.get_paginated_response(serializer.data)
 
 
 class TagViewSet(viewsets.ModelViewSet):
