@@ -93,11 +93,11 @@ Follow these steps to install and run SdelayDelo locally.
    ```
 5. Apply migrations:
    ```bash
-   python manage.py migrate
+   python3 manage.py migrate
    ```
 6. Create a superuser (admin account):
    ```bash
-   python manage.py createsuperuser
+   python3 manage.py createsuperuser
    ```
 7. Create local settings and **configure it**:
    ```bash
@@ -105,7 +105,7 @@ Follow these steps to install and run SdelayDelo locally.
    ```
 8. Run the development server:
    ```bash
-   python manage.py runserver
+   python3 manage.py runserver
    ```
    The server will start at http://127.0.0.1:8000/.
 
