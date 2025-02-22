@@ -575,13 +575,13 @@ class NoteViewSetV3(NoteViewSetV2):
     Inherits from NoteViewSetV2 and adds additional functionality.
     """
 
-    @action(detail=False, methods=["get"], url_path="unarchived")
+    @action(detail=False, methods=["get"], url_path="archived")
     def shows_unarchived(self, request):
         """
-        Shows only unarchived notes
+        Shows only archived notes
         """
         user = self.request.user
-        logger.debug(f"Fetching unarchived notes for user {user.username}")
+        logger.debug(f"Fetching archived notes for user {user.username}")
 
         queryset = Note.objects.filter(user=user, is_archived=True)
         page = self.paginate_queryset(queryset)

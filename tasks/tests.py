@@ -1812,6 +1812,7 @@ class NoteTestViewSetV3(APITestCase):
         self.note_2 = Note.objects.create(
             user=self.user,
             title=f"Note 2",
+            date_of_note=datetime.datetime(2270, 1, 1),
             description=f"Description 2",
         )
 
@@ -1819,6 +1820,7 @@ class NoteTestViewSetV3(APITestCase):
             user=self.user,
             title=f"Note 3",
             description=f"Description 3",
+            date_of_note=datetime.datetime.now(),
             is_archived=True,
         )
 
@@ -1826,6 +1828,15 @@ class NoteTestViewSetV3(APITestCase):
             user=self.user,
             title=f"Note 4",
             description=f"Description 4",
+            date_of_note=datetime.datetime(1970, 1, 1),
+            is_archived=True,
+        )
+
+        self.note_5 = Note.objects.create(
+            user=self.user,
+            title=f"Note 5",
+            date_of_note=datetime.datetime(2270, 1, 1),
+            description=f"Description 5",
             is_archived=True,
         )
 
@@ -1846,10 +1857,10 @@ class NoteTestViewSetV3(APITestCase):
         self.assertNotIn("Note 3", str(response.data))
         self.assertNotIn("Note 4", str(response.data))
 
-    def test_unarchived(self):
-        """Tests if unarchived in current pages are currently displaying"""
+    def test_archived(self):
+        """Tests if archived in current pages are currently displaying"""
         url = reverse("note_v3-list")
-        url += "unarchived/"
+        url += "archived/"
         response = self.client.get(url, headers=self.header_user)
         self.assertEqual(response.status_code, 200)
 
@@ -1864,6 +1875,11 @@ class NoteTestViewSetV3(APITestCase):
         self.assertNotIn("Note 2", str(response.data))
         self.assertIn("Note 3", str(response.data))
         self.assertIn("Note 4", str(response.data))
+
+        # Checks if custom params are working
+        self.assertIn("total_count_7_days", str(response.data))
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(response.data["total_count_7_days"], 1)
 
     def test_unarchived_v2(self):
         """Tests if unarchived in not current pages is fetching error"""

@@ -60,7 +60,7 @@ The following API endpoints are available:
 
 - **v1:** Basic Note API functionality.
 - **v2:** Inherits from v1. Filters the notes queryset to only return notes belonging to the current user that are *not* archived. Includes pagination.
-- **v3:** Inherits from v2. Includes an extra endpoint `/api/v3/note/unarchived/` which shows only the archived notes of the current user.
+- **v3:** Inherits from v2. Includes an extra endpoint `/api/v3/note/archived/` which shows only the archived notes of the current user.
 
 ## Installation
 
