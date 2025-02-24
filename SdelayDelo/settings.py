@@ -28,7 +28,7 @@ if not os.path.exists(os.path.dirname(LOG_FILE)):
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 TESTING = sys.argv[1:2] == ["test"]
 
@@ -64,7 +64,7 @@ ROOT_URLCONF = "SdelayDelo.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [os.path.join(BASE_DIR, "templates")],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

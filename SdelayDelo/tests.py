@@ -1,4 +1,5 @@
-from django.test import TestCase, override_settings, RequestFactory
+from urllib import request
+from django.test import TestCase, override_settings, RequestFactory, Client
 from django.urls import reverse
 from django.conf import settings
 from django.utils.timezone import now
@@ -15,6 +16,7 @@ import tempfile
 import os
 import logging
 
+from SdelayDelo.local_settings import ALLOWED_HOSTS
 from tasks.models import Tag
 
 from .middlewares import MediaServerMiddleware
@@ -105,6 +107,27 @@ class ErrorTrackingMiddlewareTest(TestCase):
         with freeze_time(unban_time):
             response = self.simulate_request(200)
             self.assertNotEqual(response.status_code, 403)  # Ban lifted
+
+
+@override_settings(DEBUG=False, ALLOWED_HOSTS=["*"])
+class Test404PageIsCustom(TestCase):
+    """Tests if 404 is custom in debug=false mode"""
+
+    def setUp(self):
+        """Setting client for requesting"""
+        self.client = Client(enforce_csrf_checks=False)
+
+    def test_404(self):
+        response = self.client.get("/this-url-definitely-does-not-exist/")
+
+        self.assertEqual(response.status_code, 404)
+
+        self.assertContains(
+            response,
+            "Запрошенная страница не существует.",
+            status_code=404,
+            html=True,  #
+        )
 
 
 @override_settings(
