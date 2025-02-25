@@ -18,8 +18,35 @@ logger = logging.getLogger(__name__)
 
 
 class custom_user(AbstractUser):
+
+    LANGUAGE_CHOICES = (
+        ("en", "English"),
+        ("ru", "Russian"),
+    )
+
+    THEME_CHOICES = (
+        ("light", "Light"),
+        ("dark", "Dark"),
+    )
+
     telegram_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     fa_2 = models.BooleanField(default=False)
+
+    language = models.CharField(
+        max_length=2,
+        choices=LANGUAGE_CHOICES,
+        default="en",
+        verbose_name="Preferred Language",
+        help_text="Choose your preferred language for the site.",
+    )
+
+    theme = models.CharField(
+        max_length=10,
+        choices=THEME_CHOICES,
+        default="light",
+        verbose_name="Preferred Theme",
+        help_text="Choose your preferred theme for the site (light or dark).",
+    )
 
 
 User = get_user_model()

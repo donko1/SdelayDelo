@@ -9,7 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils.timezone import now, timedelta
 from django.conf import settings
 from django.core.files.storage import default_storage
-
+from django.db import IntegrityError
 
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
@@ -53,28 +53,120 @@ def generate_test_image(filename="test.png", size=(100, 100), color=(155, 0, 0))
 User = get_user_model()
 
 
-class UserCustomModelTest(TestCase):
-    """This test case tests if user model is custom_user model from ./models.py"""
+class CustomUserModelTests(TestCase):
+    """
+    Tests for verifying the functionality of the custom user model (custom_user).
+    """
 
     def setUp(self):
-        self.user = User.objects.create_user(
-            username="testuser", password="testpassword"
+        """
+        Set up for each test.
+        """
+        self.User = get_user_model()
+        self.user = self.User.objects.create_user(
+            username="testuser",
+            password="testpassword",
+            email="test@example.com",
+            telegram_id="123456789",
+            fa_2=True,
+            language="ru",
+            theme="dark",
         )
 
-    def check_if_user_models_are_the_same(self):
-        """Tests if models are the same"""
-        self.assertEqual(custom_user, User)
+    def test_user_creation(self):
+        """
+        Verifies successful user creation.
+        """
+        user = self.user
 
-    def test_telegram_id_field(self):
-        """Tests if telegram id field is exists and correct working. Checking validators"""
-        self.assertEqual(self.user.telegram_id, None)
-        self.user.telegram_id = 123
-        self.user.save()
-        self.assertEqual(123, self.user.telegram_id)
-        self.user.telegram_id = "x" * 300  # More than 255 symbols
-        with self.assertRaises(DjangoValidationError):
-            self.user.full_clean()
-            self.user.save()
+        self.assertTrue(self.User.objects.filter(username="testuser").exists())
+
+        self.assertEqual(user.username, "testuser")
+        self.assertEqual(user.email, "test@example.com")
+        self.assertTrue(user.check_password("testpassword"))
+        self.assertEqual(user.telegram_id, "123456789")
+        self.assertTrue(user.fa_2)
+        self.assertEqual(user.language, "ru")
+        self.assertEqual(user.theme, "dark")
+
+    def test_default_values(self):
+        """
+        Verifies the default values for the language and theme fields.
+        """
+        user = self.User.objects.create_user(
+            username="defaultuser", password="password"
+        )
+
+        self.assertEqual(user.language, "en")
+        self.assertEqual(user.theme, "light")
+        self.assertFalse(user.fa_2)
+        self.assertIsNone(user.telegram_id)
+
+    def test_language_choices(self):
+        """
+        Verifies the constraint of values for the language field.
+        """
+        user = self.User(
+            username="invaliduser", password="password", language="invalid"
+        )
+        with self.assertRaises(DjangoValidationError) as context:
+            user.full_clean()
+        self.assertIn(
+            "Значения 'invalid' нет среди допустимых вариантов.",
+            context.exception.message_dict["language"],
+        )
+
+    def test_theme_choices(self):
+        """
+        Verifies the constraint of values for the theme field.
+        """
+        user = self.User(username="invaliduser", password="password", theme="invalid")
+        with self.assertRaises(DjangoValidationError) as context:
+            user.full_clean()
+        self.assertIn(
+            "Значения 'invalid' нет среди допустимых вариантов.",
+            context.exception.message_dict["theme"],
+        )
+
+    def test_telegram_id_unique(self):
+        """
+        Verifies the uniqueness of the telegram_id field.
+
+        Since unique constraints raise IntegrityError on database level during `save()`,
+        we test for that.
+        """
+        self.User.objects.create_user(
+            username="user1", password="password", telegram_id="duplicate_id"
+        )
+        with self.assertRaises(IntegrityError):  # Expect IntegrityError during save
+            user2 = self.User(
+                username="user2", password="password", telegram_id="duplicate_id"
+            )
+            user2.save()  # Save triggers the database-level unique constraint check
+
+    def test_string_representation(self):
+        """
+        Verifies the string representation of the user (__str__).
+        """
+        self.assertEqual(str(self.user), "testuser")
+
+    def test_telegram_id_nullable(self):
+        """
+        Verifies that the telegram_id field can be None (null=True).
+        """
+        user = self.User.objects.create_user(
+            username="nullableuser", password="password"
+        )
+        self.assertIsNone(user.telegram_id)
+
+    def test_telegram_id_blankable(self):
+        """
+        Verifies that the telegram_id field can be an empty string (blank=True).
+        """
+        user = self.User.objects.create_user(
+            username="blankuser", password="password", telegram_id=""
+        )
+        self.assertEqual(user.telegram_id, "")
 
 
 class TestHexColorValidation(TestCase):
@@ -1426,7 +1518,10 @@ class TagTestViewSet(APITestCase):
         Making headers to login as user
         """
         self.user = User.objects.create(
-            username="testuser", email="example@example.com", password="qwerty123"
+            username="testuser",
+            email="example@example.com",
+            password="qwerty123",
+            theme="white",
         )
         self.access_token_user = Token.objects.create(user=self.user).key
         self.header_user = {"Authorization": f"Token {self.access_token_user}"}
@@ -1620,7 +1715,10 @@ class TestUpdateUserInfo(APITestCase):
     def setUp(self):
         self.user_without_telegram_id = (
             User.objects.create_user(  # Use create_user for passwords
-                username="user1", email="example1@example.com", password="password1"
+                username="user1",
+                email="example1@example.com",
+                password="password1",
+                theme="dark",
             )
         )
         self.user_without_telegram_id.fa_2 = False  # Initialize fa_2
@@ -1751,7 +1849,10 @@ class NoteTestViewSetV2(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create(
-            username="testuser", email="example@example.com", password="qwerty123"
+            username="testuser",
+            email="example@example.com",
+            password="qwerty123",
+            language="ru",
         )
         self.access_token_user = Token.objects.create(user=self.user).key
         self.header_user = {"Authorization": f"Token {self.access_token_user}"}
@@ -2100,7 +2201,7 @@ class IconAPITests(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="testuser", password="testpass123"
+            username="testuser", password="testpass123", language="en"
         )
         self.tag = Tag.objects.create(
             title="Test Tag", user=self.user, colour="#FFFFFF"
