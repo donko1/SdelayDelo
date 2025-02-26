@@ -141,6 +141,9 @@ class UserUpdateSerializer(
         required=False, allow_null=True
     )  # Adjust Field based on data type
 
+    language = serializers.ChoiceField(["ru", "en"])
+    theme = serializers.ChoiceField(["light", "dark"])
+
     def update(self, instance, validated_data: dict):
         """
         Update and return an existing `User` instance, given the validated data.
@@ -151,6 +154,8 @@ class UserUpdateSerializer(
         instance.fa_2 = validated_data.get(
             "fa_2", instance.fa_2
         )  # Use instance value if not provided
+        instance.theme = validated_data.get("theme", instance.theme)
+        instance.language = validated_data.get("language", instance.language)
         instance.save()
         logger.info(f"Updated user: {instance.username}")
         return instance

@@ -333,12 +333,15 @@ def change_userinfo(request) -> Response:
     if serializer.is_valid():
         serializer.save()  # Calls the `update` method in the serializer
         logger.info(f"User information updated for {user.username}")
+        logger.info(f"Was updated: {serializer.data}")
         return Response(
             {"detail": "User information updated successfully."},
             status=status.HTTP_200_OK,
         )
     else:
-        logger.error(f"Failed to update user information for {user.username}")
+        logger.error(
+            f"Failed to update user information for {user.username}\n Validation errors: {serializer.errors}"
+        )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

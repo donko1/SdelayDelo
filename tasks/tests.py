@@ -1521,7 +1521,7 @@ class TagTestViewSet(APITestCase):
             username="testuser",
             email="example@example.com",
             password="qwerty123",
-            theme="white",
+            theme="light",
         )
         self.access_token_user = Token.objects.create(user=self.user).key
         self.header_user = {"Authorization": f"Token {self.access_token_user}"}
@@ -1709,17 +1709,17 @@ class TagTestViewSet(APITestCase):
 
 class TestUpdateUserInfo(APITestCase):
     """
-    Tests if currently changing fa2_status, telegram id, etc.
+    Tests if currently changing fa2_status, telegram id, theme, languafe
+
     """
 
     def setUp(self):
-        self.user_without_telegram_id = (
-            User.objects.create_user(  # Use create_user for passwords
-                username="user1",
-                email="example1@example.com",
-                password="password1",
-                theme="dark",
-            )
+        self.user_without_telegram_id = User.objects.create_user(
+            username="user1",
+            email="example1@example.com",
+            password="password1",
+            theme="light",
+            language="en",
         )
         self.user_without_telegram_id.fa_2 = False  # Initialize fa_2
         self.user_without_telegram_id.save()
@@ -1729,10 +1729,8 @@ class TestUpdateUserInfo(APITestCase):
         ).key
         self.header_user1 = {"Authorization": f"Token {self.access_token_user1}"}
 
-        self.user_with_telegram_id = (
-            User.objects.create_user(  # Use create_user for passwords
-                username="user2", email="example2@example.com", password="password2"
-            )
+        self.user_with_telegram_id = User.objects.create_user(
+            username="user2", email="example2@example.com", password="password2"
         )
         self.user_with_telegram_id.telegram_id = "123456"
         self.user_with_telegram_id.fa_2 = False  # Initialize fa_2
@@ -1742,6 +1740,36 @@ class TestUpdateUserInfo(APITestCase):
             user=self.user_with_telegram_id
         ).key
         self.header_user2 = {"Authorization": f"Token {self.access_token_user2}"}
+
+        self.url = reverse("change-userinfo")
+
+    def test_update_theme(self):
+        """Test updating the user's theme preference."""
+        data = {"theme": "dark"}
+        self.assertEqual(self.user_without_telegram_id.theme, "light")
+        response = self.client.patch(self.url, data, headers=self.header_user1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user_without_telegram_id.refresh_from_db()
+        self.assertEqual(self.user_without_telegram_id.theme, "dark")
+
+        # Test with invalid theme
+        data = {"theme": "invalid_theme"}
+        response = self.client.patch(self.url, data, headers=self.header_user1)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_language(self):
+        """Test updating the user's language preference."""
+        data = {"language": "ru"}
+        self.assertEqual(self.user_without_telegram_id.language, "en")
+        response = self.client.patch(self.url, data, headers=self.header_user1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user_without_telegram_id.refresh_from_db()
+        self.assertEqual(self.user_without_telegram_id.language, "ru")
+
+        # Test with invalid language
+        data = {"language": "invalid_lang"}
+        response = self.client.patch(self.url, data, headers=self.header_user1)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_currently_display_in_whoami(self):
         """
@@ -1771,8 +1799,7 @@ class TestUpdateUserInfo(APITestCase):
         Test if changing telegram_id is currently working
         """
         whoami = reverse("whoami")
-        url = reverse("change-userinfo")
-
+        url = self.url
         # Change telegram_id for user1
         data = {"telegram_id": "abcde"}
         request = self.client.patch(
@@ -1810,8 +1837,7 @@ class TestUpdateUserInfo(APITestCase):
         Test if changing fa_2 is currently working
         """
         whoami = reverse("whoami")
-        url = reverse("change-userinfo")
-
+        url = self.url
         # Change fa_2 to True for user1
         data = {"fa_2": True}
         request = self.client.patch(url, data, headers=self.header_user1, format="json")
@@ -1839,6 +1865,22 @@ class TestUpdateUserInfo(APITestCase):
         # Fetch user2 from the database to verify the change persisted
         updated_user2 = User.objects.get(username="user2")
         self.assertFalse(updated_user2.fa_2)
+
+    def test_update_multiple_fields(self):
+        """Test updating multiple user fields at once."""
+        data = {
+            "theme": "dark",
+            "language": "ru",
+            "telegram_id": "12345",
+            "fa_2": True,
+        }
+        response = self.client.patch(self.url, data, headers=self.header_user1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user_without_telegram_id.refresh_from_db()
+        self.assertEqual(self.user_without_telegram_id.theme, "dark")
+        self.assertEqual(self.user_without_telegram_id.language, "ru")
+        self.assertEqual(self.user_without_telegram_id.telegram_id, "12345")
+        self.assertTrue(self.user_without_telegram_id.fa_2)
 
 
 class NoteTestViewSetV2(APITestCase):
