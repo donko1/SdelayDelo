@@ -5,16 +5,24 @@ from django.utils.crypto import get_random_string
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+
 
 import hashlib
 import uuid
 from datetime import timedelta
 import logging
+import pytz
 
 
 from .validators import validate_hex_color
 
 logger = logging.getLogger(__name__)
+
+
+def validate_timezone(value):
+    if value not in pytz.all_timezones:
+        raise ValidationError(f"{value} is not a valid timezone.")
 
 
 class custom_user(AbstractUser):
@@ -47,6 +55,14 @@ class custom_user(AbstractUser):
         verbose_name="Preferred Theme",
         help_text="Choose your preferred theme for the site (light or dark).",
     )
+
+    timezone = models.CharField(
+        max_length=50, default="UTC", validators=[validate_timezone]
+    )
+
+    def get_current_time(self):
+        user_timezone = pytz.timezone(self.timezone)
+        return timezone.now().astimezone(user_timezone)
 
 
 User = get_user_model()

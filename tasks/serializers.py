@@ -7,6 +7,7 @@ from django.core.files.storage import default_storage
 import uuid
 import os
 import logging
+import pytz
 
 from rest_framework import serializers
 
@@ -143,6 +144,12 @@ class UserUpdateSerializer(
 
     language = serializers.ChoiceField(["ru", "en"])
     theme = serializers.ChoiceField(["light", "dark"])
+    timezone = serializers.CharField(required=False)
+
+    def validate_timezone(self, value):
+        if value not in pytz.all_timezones:
+            raise serializers.ValidationError(f"{value} is not a valid timezone.")
+        return value
 
     def update(self, instance, validated_data: dict):
         """
@@ -156,6 +163,7 @@ class UserUpdateSerializer(
         )  # Use instance value if not provided
         instance.theme = validated_data.get("theme", instance.theme)
         instance.language = validated_data.get("language", instance.language)
+        instance.timezone = validated_data.get("timezone", instance.timezone)
         instance.save()
         logger.info(f"Updated user: {instance.username}")
         return instance

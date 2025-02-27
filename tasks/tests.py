@@ -7,6 +7,7 @@ from django.utils.timezone import is_naive, make_aware
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils.timezone import now, timedelta
+from django.utils import timezone
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db import IntegrityError
@@ -20,6 +21,7 @@ import uuid
 import datetime
 import io
 import os
+import pytz
 
 from PIL import Image
 
@@ -167,6 +169,85 @@ class CustomUserModelTests(TestCase):
             username="blankuser", password="password", telegram_id=""
         )
         self.assertEqual(user.telegram_id, "")
+
+    def test_get_current_time(self):
+        """
+        Verifies that the get_current_time method returns the correct time for the user's timezone.
+        """
+        user = self.User.objects.create_user(
+            username="timezoneuser", password="password", timezone="Europe/Moscow"
+        )
+
+        # Get the current time in the user's timezone
+        user_time = user.get_current_time()
+
+        # Get the current time in UTC and convert it to the user's timezone
+        utc_time = timezone.now()
+        moscow_tz = pytz.timezone("Europe/Moscow")
+        expected_time = utc_time.astimezone(moscow_tz)
+
+        # Compare the times (allowing for a small difference due to execution time)
+        self.assertAlmostEqual(user_time, expected_time, delta=timedelta(seconds=1))
+
+    def test_timezone_default(self):
+        """
+        Verifies that the default timezone is UTC.
+        """
+        user = self.User.objects.create_user(
+            username="defaulttimezoneuser", password="password"
+        )
+        self.assertEqual(user.timezone, "UTC")
+
+    def test_invalid_timezone(self):
+        """
+        Verifies that an invalid timezone raises a ValidationError.
+        """
+        with self.assertRaises(DjangoValidationError):
+            user = self.User(
+                username="invalidtimezoneuser",
+                password="password",
+                timezone="Invalid/Timezone",
+            )
+            user.full_clean()
+
+    def test_fa_2_default(self):
+        """
+        Verifies that the default value for fa_2 is False.
+        """
+        user = self.User.objects.create_user(
+            username="fa2defaultuser", password="password"
+        )
+        self.assertFalse(user.fa_2)
+
+    def test_telegram_id_max_length(self):
+        """
+        Verifies that the telegram_id field has a maximum length of 255 characters.
+        """
+        max_length = 255
+        telegram_id = "a" * (max_length + 1)
+
+        with self.assertRaises(DjangoValidationError):
+            user = self.User(
+                username="telegramuser", password="password", telegram_id=telegram_id
+            )
+            user.full_clean()
+
+    def test_get_current_time_different_timezones(self):
+        """
+        Verifies that get_current_time returns different times for users in different timezones.
+        """
+        user1 = self.User.objects.create_user(
+            username="user1", password="password", timezone="America/New_York"
+        )
+        user2 = self.User.objects.create_user(
+            username="user2", password="password", timezone="Asia/Tokyo"
+        )
+
+        time1 = user1.get_current_time()
+        time2 = user2.get_current_time()
+
+        self.assertNotEqual(time1.tzinfo, time2.tzinfo)
+        self.assertNotEqual(time1.hour, time2.hour)
 
 
 class TestHexColorValidation(TestCase):
@@ -1709,7 +1790,7 @@ class TagTestViewSet(APITestCase):
 
 class TestUpdateUserInfo(APITestCase):
     """
-    Tests if currently changing fa2_status, telegram id, theme, languafe
+    Tests if currently changing fa2_status, telegram id, theme, language, timezone
 
     """
 
@@ -1865,6 +1946,79 @@ class TestUpdateUserInfo(APITestCase):
         # Fetch user2 from the database to verify the change persisted
         updated_user2 = User.objects.get(username="user2")
         self.assertFalse(updated_user2.fa_2)
+
+    def test_update_user_timezone(self):
+        """
+        Test updating user's timezone.
+        """
+        new_timezone = "Europe/Paris"
+        response = self.client.patch(
+            self.url,
+            {"timezone": new_timezone},
+            headers=self.header_user1,
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user_without_telegram_id.refresh_from_db()
+        self.assertEqual(self.user_without_telegram_id.timezone, new_timezone)
+
+    def test_get_current_time_after_timezone_update(self):
+        """
+        Test that get_current_time returns correct time after timezone update.
+        """
+        new_timezone = "America/New_York"
+        self.client.patch(
+            self.url,
+            {"timezone": new_timezone},
+            headers=self.header_user1,
+            format="json",
+        )
+        self.user_without_telegram_id.refresh_from_db()
+
+        user_time = self.user_without_telegram_id.get_current_time()
+        expected_time = timezone.now().astimezone(pytz.timezone(new_timezone))
+
+        # Compare times allowing for small difference due to execution time
+        self.assertAlmostEqual(user_time, expected_time, delta=timedelta(seconds=1))
+
+    def test_invalid_timezone_update(self):
+        """
+        Test that updating to an invalid timezone returns an error.
+        """
+        invalid_timezone = "Invalid/Timezone"
+        response = self.client.patch(
+            self.url,
+            {"timezone": invalid_timezone},
+            headers=self.header_user1,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("timezone", response.data)
+
+    def test_timezone_affects_note_creation_time(self):
+        """
+        Test that user's timezone affects the creation time of a new note.
+        """
+        new_timezone = "Asia/Tokyo"
+        self.client.patch(
+            self.url,
+            {"timezone": new_timezone},
+            headers=self.header_user1,
+        )
+        self.user_without_telegram_id.refresh_from_db()
+
+        note_data = {"title": "Test Note", "description": "This is a test note."}
+        response = self.client.post(
+            reverse("note_v2-list"), note_data, headers=self.header_user1
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        note = Note.objects.get(id=response.data["id"])
+        note_creation_time = note.date_create.astimezone(pytz.timezone(new_timezone))
+        user_current_time = self.user_without_telegram_id.get_current_time()
+
+        # Compare times allowing for small difference due to execution time
+        self.assertAlmostEqual(
+            note_creation_time, user_current_time, delta=timedelta(seconds=5)
+        )
 
     def test_update_multiple_fields(self):
         """Test updating multiple user fields at once."""
