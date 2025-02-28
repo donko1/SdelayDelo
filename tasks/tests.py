@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db import IntegrityError
 
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -793,7 +793,7 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(
             context=self.get_serializer_context(), data=self.invalid_note_data
         )
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn("This field may not be blank.", str(context.exception))
 
@@ -853,7 +853,7 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(
             context=self.get_serializer_context(), data=data_with_null_description
         )
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn("This field is required.", str(context.exception))
 
@@ -864,7 +864,7 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(
             context=self.get_serializer_context(), data=data_without_description
         )
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn("This field is required.", str(context.exception))
 
@@ -877,7 +877,7 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(
             context=self.get_serializer_context(), data=data_without_tags
         )
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn("This field is required.", str(context.exception))
 
@@ -891,7 +891,7 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(
             context=self.get_serializer_context(), data=invalid_tag_data
         )
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn(
             'Invalid pk "9999" - object does not exist.', str(context.exception)
@@ -952,7 +952,7 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(
             context=self.get_serializer_context(), data=invalid_types_data
         )
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn(
             'Expected a list of items but got type "str".', str(context.exception)
@@ -989,7 +989,7 @@ class NoteSerializerTestCase(APITestCase):
         serializer = NoteSerializer(
             context=self.get_serializer_context(), data=long_title_data
         )
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
         self.assertIn(
             "Ensure this field has no more than 255 characters.",
@@ -2312,7 +2312,7 @@ class IconUploadSerializerTest(APITestCase):
         }
 
         serializer = IconUploadSerializer(data=data, context={"request": self.request})
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
 
         self.assertIn("Ur tag id is not correct", str(context.exception.detail))
@@ -2326,7 +2326,7 @@ class IconUploadSerializerTest(APITestCase):
         }
 
         serializer = IconUploadSerializer(data=data, context={"request": self.request})
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(DRFValidationError) as context:
             serializer.is_valid(raise_exception=True)
 
         self.assertIn("tag_id", context.exception.detail)
