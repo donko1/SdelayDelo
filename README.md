@@ -22,7 +22,7 @@ The following API endpoints are available:
 - **`POST /api/send_code/`**: Sends a verification code to the provided email address.
 - **`POST /api/check_code/`**: Verifies the provided verification code.
 - **`POST /api/register/`**: Registers a new user.
-- **`GET /api/whoami`**: Returns information about the currently logged-in user.
+- **`GET /api/whoami`**: Returns information about the currently logged-in user. In debug mode returns all user information, if not returns only theme and other non-sensitive information.
 - **`POST /api/reset_password`**: Resets the user's password.
 - **`POST /api/login`**: Logs in an existing user.
 - **`PATCH /api/change-userinfo/`**: Updates user information.

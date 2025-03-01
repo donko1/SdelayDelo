@@ -430,20 +430,62 @@ def login(request):
 @api_view(["GET"])
 @throttle_classes([WhoAmIRateThrottle])
 def who_am_i(request):
+    """
+    This function returns information about the authenticated user.
+
+    Parameters:
+    request: The request object containing user information.
+
+    Returns:
+    A JSON response with user information if the user is authenticated.
+    If the user is not authenticated, a JSON response with an error message is returned.
+
+    Example:
+    {
+        "user": {
+            "email": "user@example.com",
+            "username": "user123",
+            "telegram_id": "123456789",
+            "fa_2": true,
+            "theme": "dark",
+            "language": "en",
+            "timezone": "America/New_York"
+        }
+    }
+    """
     user = request.user
     if request.user.is_authenticated:
         logger.info(f"who_am_i called by authenticated user {user.username}")
+        if settings.DEBUG or settings.TESTING:
+            logger.info("Returns debug information")
+            return Response(
+                {
+                    "user": {
+                        "email": user.email,
+                        "username": user.username,
+                        "telegram_id": user.telegram_id,
+                        "fa_2": user.fa_2,
+                        "theme": user.theme,
+                        "language": user.language,
+                        "timezone": user.timezone,
+                        "mode": "DEBUG",
+                    }
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        logger.info("Returns production information")
         return Response(
             {
                 "user": {
-                    "email": user.email,
-                    "username": user.username,
-                    "telegram_id": user.telegram_id,
-                    "fa_2": user.fa_2,
+                    "theme": user.theme,
+                    "language": user.language,
+                    "timezone": user.timezone,
+                    "mode": "PRODUCTION",
                 }
-            },
-            status=status.HTTP_200_OK,
+            }
         )
+
     else:
         logger.warning("who_am_i called by unauthenticated user")
         return Response(

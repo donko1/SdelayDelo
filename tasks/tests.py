@@ -25,6 +25,8 @@ import pytz
 
 from PIL import Image
 
+from SdelayDelo.settings import TESTING
+
 from .models import Note, Tag, custom_user, TokenToEmail
 from .serializers import TagSerializer, NoteSerializer, IconUploadSerializer
 from .validators import is_hex_color
@@ -1319,6 +1321,70 @@ class WhoAmIViewTest(APITestCase):
         response = self.client.get(self.whoami_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("detail", response.data)
+
+    @override_settings(DEBUG=False, TESTING=False)
+    def test_production_mode(self):
+        """
+        Test the production mode functionality of the who_am_i view.
+
+        This function tests whether the who_am_i view correctly handles requests
+        in production mode (DEBUG=False). It verifies that sensitive information
+        is not returned and that the appropriate production mode indicators are present.
+
+        The test performs the following steps:
+        1. Creates an authenticated request to the whoami endpoint.
+        2. Calls the who_am_i view with this request.
+        3. Verifies that the response status is 200 OK.
+        4. Checks that sensitive information (username, email) is not in the response.
+        5. Ensures that debug-related information is not present.
+        6. Confirms that production mode indicators are present.
+        7. Verifies that the user's theme setting is correctly returned.
+
+        Returns:
+            None. Assertions within the method will raise exceptions if any test fails.
+        """
+        request = self.factory.get(self.whoami_url)
+        force_authenticate(request, user=self.user_with_token, token=self.access_token)
+        response = who_am_i(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("username", str(response.data))
+        self.assertNotIn("email", str(response.data))
+        self.assertNotIn("DEBUG", str(response.data))
+        self.assertNotIn("fa_2", str(response.data))
+        self.assertIn("PRODUCTION", str(response.data))
+        self.assertIn("theme", str(response.data))
+        self.assertEqual(response.data["user"]["theme"], "light")
+
+    @override_settings(DEBUG=True)
+    def test_debug_mode(self):
+        """
+        Test the debug mode functionality of the who_am_i view.
+
+        This function tests whether the who_am_i view correctly returns debug information
+        when in debug mode. It checks for the presence of the authenticated user's username
+        and email, as well as the DEBUG and fa_2 flags in the response data.
+
+        The test performs the following steps:
+        1. Creates an authenticated request to the whoami endpoint.
+        2. Calls the who_am_i view with this request.
+        3. Verifies that the response status is 200 OK.
+        4. Checks that the returned username and email match the authenticated user's details.
+        5. Ensures that the DEBUG and fa_2 flags are present in the response data.
+
+        Returns:
+            None. Assertions within the method will raise exceptions if any test fails.
+        """
+        request = self.factory.get(self.whoami_url)
+        force_authenticate(request, user=self.user_with_token, token=self.access_token)
+        response = who_am_i(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["user"]["username"], self.user_with_token.username
+        )
+        self.assertEqual(response.data["user"]["email"], self.user_with_token.email)
+        self.assertIn("DEBUG", str(response.data))
+        self.assertIn("fa_2", str(response.data))
+        self.assertIn("theme", str(response.data))
 
 
 class NoteTestViewSet(APITestCase):
