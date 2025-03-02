@@ -16,11 +16,11 @@ import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-LOG_FILE = os.path.join(BASE_DIR, "logs", "debug.log")
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
 
 # Создайте папку logs если её нет
-if not os.path.exists(os.path.dirname(LOG_FILE)):
-    os.makedirs(os.path.dirname(LOG_FILE))
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
 
 
 # Quick-start development settings - unsuitable for production
@@ -84,14 +84,14 @@ BAN_DURATION_MINUTES = 3 * 60
 ERROR_WINDOW_MINUTES = 10
 
 LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
     "filters": {
         "myapp_filter": {
             "()": "django.utils.log.CallbackFilter",
             "callback": lambda record: record.name.startswith(("SdelayDelo", "tasks")),
         }
     },
-    "version": 1,
-    "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
             "format": "{levelname} {asctime} {message}",
@@ -99,10 +99,40 @@ LOGGING = {
         },
     },
     "handlers": {
-        "file": {
+        "debug_file": {
             "level": "DEBUG",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOG_FILE,
+            "filename": os.path.join(LOGS_DIR, "debug.log"),
+            "maxBytes": 1024 * 1024 * 5,  # 5 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+            "filters": ["myapp_filter"],
+        },
+        "info_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(LOGS_DIR, "info.log"),
+            "maxBytes": 1024 * 1024 * 5,  # 5 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+            "filters": ["myapp_filter"],
+        },
+        "warning_file": {
+            "level": "WARNING",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(LOGS_DIR, "warnings.log"),
+            "maxBytes": 1024 * 1024 * 5,  # 5 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+            "filters": ["myapp_filter"],
+        },
+        "error_file": {
+            "level": "ERROR",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(LOGS_DIR, "errors.log"),
             "maxBytes": 1024 * 1024 * 5,  # 5 MB
             "backupCount": 5,
             "formatter": "verbose",
@@ -112,22 +142,22 @@ LOGGING = {
     },
     "loggers": {
         "django": {
-            "handlers": ["file"],
+            "handlers": ["debug_file", "info_file", "warning_file", "error_file"],
             "level": "DEBUG",
             "propagate": True,
         },
         "django.request": {
-            "handlers": ["file"],
+            "handlers": ["debug_file", "info_file", "warning_file", "error_file"],
             "level": "DEBUG",
             "propagate": False,
         },
         "SdelayDelo": {
-            "handlers": ["file"],
+            "handlers": ["debug_file", "info_file", "warning_file", "error_file"],
             "level": "DEBUG",
             "propagate": False,
         },
         "tasks": {
-            "handlers": ["file"],
+            "handlers": ["debug_file", "info_file", "warning_file", "error_file"],
             "level": "DEBUG",
             "propagate": False,
         },

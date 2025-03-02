@@ -2,6 +2,7 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import logging
 
 
 def main():
@@ -16,17 +17,34 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
+
+    logger = logging.getLogger("django")
+
+    is_testing = "test" in sys.argv
+    start_message = (
+        "\n### STARTING TESTING ###\n" if is_testing else "\n### STARTING SERVER ###\\n"
+    )
+    end_message = (
+        "\n### ENDING TESTING ###" if is_testing else "\n### ENDING SERVER ###"
+    )
+
+    log_dir = os.path.join(settings.BASE_DIR, "logs")
+
+    def write_to_log_files(message):
+        for filename in os.listdir(log_dir):
+            if filename.endswith(".log"):
+                file_path = os.path.join(log_dir, filename)
+                with open(file_path, "a") as log_file:
+                    log_file.write(f"{message}\n")
+
     try:
-        with open(settings.LOG_FILE, "a") as f:
-            f.write(
-                f"\n### STARTING {'TESTING' if settings.TESTING else "SERVER"} ###\n\n"
-            )
+        write_to_log_files(start_message)
+        logger.info(start_message)
+
         execute_from_command_line(sys.argv)
     finally:
-        with open(settings.LOG_FILE, "a") as f:
-            f.write(
-                f"\n### ENDING {'TESTING' if settings.TESTING else "SERVER"} ###\n\n"
-            )
+        write_to_log_files(end_message)
+        logger.info(end_message)
 
 
 if __name__ == "__main__":
