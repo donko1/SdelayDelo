@@ -109,6 +109,8 @@ Follow these steps to install and run SdelayDelo locally.
    ```
    The server will start at http://127.0.0.1:8000/.
 
+9. Fill the email fields in local_settings.py to make them working. (optionally)
+
 ### Windows
 
 1. Clone the repository:
@@ -142,6 +144,8 @@ Follow these steps to install and run SdelayDelo locally.
    python manage.py runserver
    ```
    The server will start at http://127.0.0.1:8000/.
+
+9. Fill the email fields in local_settings.py to make them working. (optionally)
 
 ## Usage
 

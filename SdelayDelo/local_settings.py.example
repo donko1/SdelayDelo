@@ -14,9 +14,9 @@ DATABASES = {
 }
 
 EMAIL_HOST = "smtp.server.ru"
-EMAIL_PORT = # Here u write ur port
-EMAIL_USE_TLS = # Bool value
-EMAIL_USE_SSL = # Bool value
+EMAIL_PORT = "ur port"
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = True
 
 
 EMAIL_HOST_USER = "example@example.ru"
@@ -25,6 +25,8 @@ EMAIL_HOST_PASSWORD = "qwerty123"
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 SERVER_EMAIL = EMAIL_HOST_USER
 EMAIL_ADMIN = EMAIL_HOST_USER
+
+EMAIL_EXISTS = False
 
 LANGUAGE_CODE = 'ru'
 USE_I18N = True

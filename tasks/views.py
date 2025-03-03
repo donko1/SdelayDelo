@@ -115,24 +115,29 @@ def check_if_email_registered(request):
 @throttle_classes([AnonRateThrottle, UserRateThrottle])
 def send_verification_code(request):
     email = request.data.get("email")
-    if not email:
-        logger.error("Email is required for send_verification_code")
-        return Response(
-            {"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST
-        )
+    if settings.EMAIL_EXISTS:
+        if not email:
+            logger.error("Email is required for send_verification_code")
+            return Response(
+                {"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
-    try:
-        token = TokenToEmail.objects.create(email=email)
-        token.send_verification_email()
-        logger.info(f"Verification code sent to {email}")
-        return Response(
-            {"detail": "Verification code sent."}, status=status.HTTP_200_OK
-        )
-    except Exception as e:
-        logger.error(f"Error sending verification code to {email}: {e}")
-        return Response(
-            {"detail": "An error occurred."}, status=status.HTTP_400_BAD_REQUEST
-        )
+        try:
+            token = TokenToEmail.objects.create(email=email)
+            token.send_verification_email()
+            logger.info(f"Verification code sent to {email}")
+            return Response(
+                {"detail": "Verification code sent."}, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            logger.error(f"Error sending verification code to {email}: {e}")
+            return Response(
+                {"detail": "An error occurred."}, status=status.HTTP_400_BAD_REQUEST
+            )
+    return Response(
+        {"detail": "Server need an email configuration. Check local settings"},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 
 @api_view(["POST"])
@@ -141,43 +146,49 @@ def verify_code(request):
     """
     Verifies the email with the provided 6-digit code and returns a registration token.
     """
-    email = request.data.get("email")
-    code = request.data.get("code")
+    if settings.EMAIL_EXISTS:
+        email = request.data.get("email")
+        code = request.data.get("code")
 
-    if not email or not code:
-        logger.error("Email and code are required for verify_code")
-        return Response(
-            {"detail": "Email and code are required."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        token_obj = TokenToEmail.objects.get(email=email)
-
-        if token_obj.validate_email(code) and not token_obj.is_verified:
-            # Generate a new registration token
-            raw_token = str(uuid.uuid4())
-            token_obj.token_hash = TokenToEmail.hash_token(raw_token)
-            token_obj.is_verified = True
-            token_obj.save(update_fields=["token_hash", "is_verified"])
-
-            logger.info(f"Email {email} successfully verified")
+        if not email or not code:
+            logger.error("Email and code are required for verify_code")
             return Response(
-                {"message": "Email successfully verified.", "token": raw_token},
-                status=status.HTTP_200_OK,
-            )
-        else:
-            logger.warning(f"Invalid code or expired token for email {email}")
-            return Response(
-                {"detail": "Invalid code or expired token."},
+                {"detail": "Email and code are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-    except TokenToEmail.DoesNotExist:
-        logger.error(f"No token found for email {email}")
-        return Response(
-            {"detail": "No token found for this email."},
-            status=status.HTTP_404_NOT_FOUND,
-        )
+
+        try:
+            token_obj = TokenToEmail.objects.get(email=email)
+
+            if token_obj.validate_email(code) and not token_obj.is_verified:
+                # Generate a new registration token
+                raw_token = str(uuid.uuid4())
+                token_obj.token_hash = TokenToEmail.hash_token(raw_token)
+                token_obj.is_verified = True
+                token_obj.save(update_fields=["token_hash", "is_verified"])
+
+                logger.info(f"Email {email} successfully verified")
+                return Response(
+                    {"message": "Email successfully verified.", "token": raw_token},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                logger.warning(f"Invalid code or expired token for email {email}")
+                return Response(
+                    {"detail": "Invalid code or expired token."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except TokenToEmail.DoesNotExist:
+            logger.error(f"No token found for email {email}")
+            return Response(
+                {"detail": "No token found for this email."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    return Response(
+        {"detail": "Server need an email configuration. Check local settings"},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 
 @api_view(["POST"])
@@ -187,72 +198,83 @@ def reset_password(request):
     Reset password using token
     """
 
-    token = request.data.get("token")
-    password = request.data.get("new_password")
+    if settings.EMAIL_EXISTS:
 
-    if not token:
-        logger.error("Registration token is required for reset_password")
-        return Response(
-            {"detail": "Registration token is required."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        token = request.data.get("token")
+        password = request.data.get("new_password")
 
-    try:
-        # Find the token object
-        token_obj = TokenToEmail.objects.get(token_hash=TokenToEmail.hash_token(token))
-
-        # Ensure the token is verified and not expired
-        if not token_obj.is_verified:
-            logger.warning(f"Email {token_obj.email} is not verified")
+        if not token:
+            logger.error("Registration token is required for reset_password")
             return Response(
-                {"detail": "Email is not verified."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if token_obj.expires_at < now():
-            logger.warning(
-                f"Registration token for email {token_obj.email} has expired"
-            )
-            return Response(
-                {"detail": "Registration token has expired."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        user = User.objects.filter(email=token_obj.email).first()
-
-        if not user:
-            logger.error(f"User with email {token_obj.email} was not found")
-            return Response(
-                {"detail": "User with this email was not found."},
+                {"detail": "Registration token is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            if validate_password(password=password) is None:
-                user.password = make_password(password)  # Хешируем пароль
-                user.save()
-                token_obj.delete()
-                logger.info(f"Password reset for user {user.username}")
+            # Find the token object
+            token_obj = TokenToEmail.objects.get(
+                token_hash=TokenToEmail.hash_token(token)
+            )
+
+            # Ensure the token is verified and not expired
+            if not token_obj.is_verified:
+                logger.warning(f"Email {token_obj.email} is not verified")
                 return Response(
-                    {"detail": "New password has been set"}, status=status.HTTP_200_OK
+                    {"detail": "Email is not verified."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-            else:
-                logger.warning(f"Password is not valid for user {user.username}")
+
+            if token_obj.expires_at < now():
+                logger.warning(
+                    f"Registration token for email {token_obj.email} has expired"
+                )
+                return Response(
+                    {"detail": "Registration token has expired."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user = User.objects.filter(email=token_obj.email).first()
+
+            if not user:
+                logger.error(f"User with email {token_obj.email} was not found")
+                return Response(
+                    {"detail": "User with this email was not found."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                if validate_password(password=password) is None:
+                    user.password = make_password(password)  # Хешируем пароль
+                    user.save()
+                    token_obj.delete()
+                    logger.info(f"Password reset for user {user.username}")
+                    return Response(
+                        {"detail": "New password has been set"},
+                        status=status.HTTP_200_OK,
+                    )
+                else:
+                    logger.warning(f"Password is not valid for user {user.username}")
+                    return Response(
+                        {"detail": "Password is not valid"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            except ValidationError:
+                logger.warning(f"Password validation failed for user {user.username}")
                 return Response(
                     {"detail": "Password is not valid"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-        except ValidationError:
-            logger.warning(f"Password validation failed for user {user.username}")
+        except TokenToEmail.DoesNotExist:
+            logger.error(f"Invalid registration token for reset_password")
             return Response(
-                {"detail": "Password is not valid"}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Invalid registration token."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-    except TokenToEmail.DoesNotExist:
-        logger.error(f"Invalid registration token for reset_password")
-        return Response(
-            {"detail": "Invalid registration token."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+
+    return Response(
+        {"detail": "Server need an email configuration. Check local settings"},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 
 @api_view(["POST"])
@@ -416,14 +438,20 @@ def login(request):
             status=200,
         )
 
-    token = TokenToEmail.objects.create(email=email)
-    token.send_verification_email()
-    url_check_code = reverse("check_code")
-    email = format_email(email)
-    logger.info(f"2FA initiated for user {user.username}")
+    if settings.EMAIL_EXISTS:
+        token = TokenToEmail.objects.create(email=email)
+        token.send_verification_email()
+        url_check_code = reverse("check_code")
+        email = format_email(email)
+        logger.info(f"2FA initiated for user {user.username}")
+        return Response(
+            {"detail": f"Now visit {url_check_code} to continue", "email": email},
+            status=202,
+        )
+
     return Response(
-        {"detail": f"Now visit {url_check_code} to continue", "email": email},
-        status=202,
+        {"detail": "Server need an email configuration. Check local settings"},
+        status=status.HTTP_400_BAD_REQUEST,
     )
 
 

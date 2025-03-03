@@ -1028,243 +1028,251 @@ class NoteSerializerTestCase(APITestCase):
         self.assertEqual(serializer.validated_data["user"], self.user)
 
 
-class EmailVerificationTests(APITestCase):
+if settings.EMAIL_EXISTS:
 
-    def setUp(self):
-        """
-        This view need not to get ban by too many requests after /SdelayDelo/tests.py tests
-        """
-        settings.ERROR_THRESHOLD = 100_000
-        settings.ERROR_WINDOW_MINUTES = 0
-        settings.BAN_DURATION_MINUTES = 100_000
+    class EmailVerificationTests(APITestCase):
 
-    def test_check_if_email_registered(self):
-        if settings.DEBUG:
-            url = reverse("check_if_email_registered")
+        def setUp(self):
+            """
+            This view need not to get ban by too many requests after /SdelayDelo/tests.py tests
+            """
+            settings.ERROR_THRESHOLD = 100_000
+            settings.ERROR_WINDOW_MINUTES = 0
+            settings.BAN_DURATION_MINUTES = 100_000
+
+        def test_check_if_email_registered(self):
+            if settings.DEBUG:
+                url = reverse("check_if_email_registered")
+                # Test missing email
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+                # Test unregistered email
+                response = self.client.get(url, {"email": "test@example.com"})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertFalse(response.data["email_is_registered"])
+
+                # Test registered email
+                User.objects.create_user(
+                    username="testuser", email="test@example.com", password="password"
+                )
+                response = self.client.get(url, {"email": "test@example.com"})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertTrue(response.data["email_is_registered"])
+
+        def test_send_verification_code(self):
+            url = reverse("send_code")
             # Test missing email
-            response = self.client.get(url)
+            response = self.client.post(url)
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-            # Test unregistered email
-            response = self.client.get(url, {"email": "test@example.com"})
+            # Test valid email
+            response = self.client.post(url, {"email": "test@example.com"})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertFalse(response.data["email_is_registered"])
-
-            # Test registered email
-            User.objects.create_user(
-                username="testuser", email="test@example.com", password="password"
+            self.assertTrue(
+                TokenToEmail.objects.filter(email="test@example.com").exists()
             )
-            response = self.client.get(url, {"email": "test@example.com"})
+
+        def test_verify_code(self):
+            url = reverse("check_code")
+            token_obj = TokenToEmail.objects.create(email="test@example.com")
+            # Test missing data
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+            # Test invalid code
+            response = self.client.post(
+                url, {"email": "test@example.com", "code": "123456"}
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+            # Test valid code
+            response = self.client.post(
+                url, {"email": "test@example.com", "code": token_obj.code}
+            )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertTrue(response.data["email_is_registered"])
+            self.assertIn("token", response.data)
 
-    def test_send_verification_code(self):
-        url = reverse("send_code")
-        # Test missing email
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test valid email
-        response = self.client.post(url, {"email": "test@example.com"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(TokenToEmail.objects.filter(email="test@example.com").exists())
-
-    def test_verify_code(self):
-        url = reverse("check_code")
-        token_obj = TokenToEmail.objects.create(email="test@example.com")
-        # Test missing data
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test invalid code
-        response = self.client.post(
-            url, {"email": "test@example.com", "code": "123456"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test valid code
-        response = self.client.post(
-            url, {"email": "test@example.com", "code": token_obj.code}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("token", response.data)
-
-    def test_register_user(self):
-        url = reverse("register")
-        token_obj = TokenToEmail.objects.create(
-            email="test@example.com", is_verified=True
-        )
-        raw_token = str(uuid.uuid4())
-        token_obj.token_hash = TokenToEmail.hash_token(raw_token)
-        token_obj.save()
-
-        # Test missing token
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test invalid token
-        response = self.client.post(url, {"token": "invalid_token"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test expired token
-        token_obj.expires_at = now() - timedelta(days=1)
-        token_obj.save()
-        response = self.client.post(url, {"token": raw_token})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test valid token
-        token_obj.expires_at = now() + timedelta(days=1)
-        token_obj.save()
-        response = self.client.post(
-            url,
-            {
-                "token": raw_token,
-                "username": "testuser",
-                "password": "password",
-                "email": "example@example.com",
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(User.objects.filter(username="testuser").exists())
-
-    def test_reset_password(self):
-        """
-        Tests if correct reset_password
-        """
-        url = reverse("reset_password")
-        token_obj = TokenToEmail.objects.create(
-            email="test@example.com", is_verified=True
-        )
-        User.objects.create(
-            email="test@example.com", username="testuser", password="qwerty123"
-        )
-        raw_token = str(uuid.uuid4())
-        token_obj.token_hash = TokenToEmail.hash_token(raw_token)
-        token_obj.save()
-
-        # Test missing token
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test invalid token
-        response = self.client.post(url, {"token": "invalid_token"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test expired token
-        token_obj.expires_at = now() - timedelta(days=1)
-        token_obj.save()
-        response = self.client.post(url, {"token": raw_token})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Test valid token
-        token_obj.expires_at = now() + timedelta(days=1)
-        token_obj.save()
-        response = self.client.post(
-            url,
-            {"token": raw_token, "new_password": "testnewpassworD123"},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(
-            check_password(
-                "testnewpassworD123",
-                User.objects.filter(username="testuser")[0].password,
+        def test_register_user(self):
+            url = reverse("register")
+            token_obj = TokenToEmail.objects.create(
+                email="test@example.com", is_verified=True
             )
-        )
+            raw_token = str(uuid.uuid4())
+            token_obj.token_hash = TokenToEmail.hash_token(raw_token)
+            token_obj.save()
 
-    def test_login(self):
-        """
-        Test login with login view
-        """
-        url = reverse("login")
-        password = "testpassword123"
-        hashed_password = make_password(password)
+            # Test missing token
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.create(username="testuser", password=hashed_password)
+            # Test invalid token
+            response = self.client.post(url, {"token": "invalid_token"})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Test incorrect password
-        response = self.client.post(
-            url, {"username": "testuser", "password": "incorrect_password"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            # Test expired token
+            token_obj.expires_at = now() - timedelta(days=1)
+            token_obj.save()
+            response = self.client.post(url, {"token": raw_token})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Test not full data
-        response = self.client.post(url, {"username": "testuser"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            # Test valid token
+            token_obj.expires_at = now() + timedelta(days=1)
+            token_obj.save()
+            response = self.client.post(
+                url,
+                {
+                    "token": raw_token,
+                    "username": "testuser",
+                    "password": "password",
+                    "email": "example@example.com",
+                },
+            )
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertTrue(User.objects.filter(username="testuser").exists())
 
-        # Test correct user and password
-        response = self.client.post(url, {"username": "testuser", "password": password})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("access_token", response.data)
+        def test_reset_password(self):
+            """
+            Tests if correct reset_password
+            """
+            url = reverse("reset_password")
+            token_obj = TokenToEmail.objects.create(
+                email="test@example.com", is_verified=True
+            )
+            User.objects.create(
+                email="test@example.com", username="testuser", password="qwerty123"
+            )
+            raw_token = str(uuid.uuid4())
+            token_obj.token_hash = TokenToEmail.hash_token(raw_token)
+            token_obj.save()
 
-    def test_login_with_email(self):
-        """
-        Test login with email
-        """
-        url = reverse("login")
-        password = "testpassword123"
-        hashed_password = make_password(password)
+            # Test missing token
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.create(
-            username="testuser", password=hashed_password, email="example@example.com"
-        )
+            # Test invalid token
+            response = self.client.post(url, {"token": "invalid_token"})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Test incorrect password
-        response = self.client.post(
-            url, {"email": "example@example.com", "password": "incorrect_password"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            # Test expired token
+            token_obj.expires_at = now() - timedelta(days=1)
+            token_obj.save()
+            response = self.client.post(url, {"token": raw_token})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Test not full data
-        response = self.client.post(url, {"email": "example@example.com"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            # Test valid token
+            token_obj.expires_at = now() + timedelta(days=1)
+            token_obj.save()
+            response = self.client.post(
+                url,
+                {"token": raw_token, "new_password": "testnewpassworD123"},
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertTrue(
+                check_password(
+                    "testnewpassworD123",
+                    User.objects.filter(username="testuser")[0].password,
+                )
+            )
 
-        # Test correct user and password
-        response = self.client.post(
-            url, {"email": "example@example.com", "password": password}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("access_token", response.data)
+        def test_login(self):
+            """
+            Test login with login view
+            """
+            url = reverse("login")
+            password = "testpassword123"
+            hashed_password = make_password(password)
 
-    def test_login_with_2_fa(self):
-        """
-        Tests if correct login with 2fa
-        """
-        url = reverse("login")
-        url_check_code = reverse("check_code")
-        check_token_url = reverse("login")
-        token_obj = TokenToEmail.objects.create(
-            email="test@example.com", is_verified=True
-        )
+            user = User.objects.create(username="testuser", password=hashed_password)
 
-        password = "qwerty123"
-        hashed_password = make_password(password)
+            # Test incorrect password
+            response = self.client.post(
+                url, {"username": "testuser", "password": "incorrect_password"}
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        User.objects.create(
-            email="test@example.com",
-            username="testuser",
-            password=hashed_password,
-            fa_2=True,
-        )
-        raw_token = str(uuid.uuid4())
-        token_obj.token_hash = TokenToEmail.hash_token(raw_token)
-        token_obj.save()
+            # Test not full data
+            response = self.client.post(url, {"username": "testuser"})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        response = self.client.post(
-            url,
-            {"email": "test@example.com", "password": password},
-        )
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        self.assertIn(
-            f"Now visit {url_check_code} to continue", response.data["detail"]
-        )
-        self.assertEqual(f"t**t@example.com", response.data["email"])
+            # Test correct user and password
+            response = self.client.post(
+                url, {"username": "testuser", "password": password}
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertIn("access_token", response.data)
 
-        response = self.client.post(
-            check_token_url, {"email": "test@example.com", "token": raw_token}
-        )
+        def test_login_with_email(self):
+            """
+            Test login with email
+            """
+            url = reverse("login")
+            password = "testpassword123"
+            hashed_password = make_password(password)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("access_token", response.data)
+            user = User.objects.create(
+                username="testuser",
+                password=hashed_password,
+                email="example@example.com",
+            )
+
+            # Test incorrect password
+            response = self.client.post(
+                url, {"email": "example@example.com", "password": "incorrect_password"}
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+            # Test not full data
+            response = self.client.post(url, {"email": "example@example.com"})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+            # Test correct user and password
+            response = self.client.post(
+                url, {"email": "example@example.com", "password": password}
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertIn("access_token", response.data)
+
+        def test_login_with_2_fa(self):
+            """
+            Tests if correct login with 2fa
+            """
+            url = reverse("login")
+            url_check_code = reverse("check_code")
+            check_token_url = reverse("login")
+            token_obj = TokenToEmail.objects.create(
+                email="test@example.com", is_verified=True
+            )
+
+            password = "qwerty123"
+            hashed_password = make_password(password)
+
+            User.objects.create(
+                email="test@example.com",
+                username="testuser",
+                password=hashed_password,
+                fa_2=True,
+            )
+            raw_token = str(uuid.uuid4())
+            token_obj.token_hash = TokenToEmail.hash_token(raw_token)
+            token_obj.save()
+
+            response = self.client.post(
+                url,
+                {"email": "test@example.com", "password": password},
+            )
+            self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+            self.assertIn(
+                f"Now visit {url_check_code} to continue", response.data["detail"]
+            )
+            self.assertEqual(f"t**t@example.com", response.data["email"])
+
+            response = self.client.post(
+                check_token_url, {"email": "test@example.com", "token": raw_token}
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertIn("access_token", response.data)
 
 
 class WhoAmIViewTest(APITestCase):
