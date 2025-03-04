@@ -8,7 +8,7 @@ from django.http import HttpResponseForbidden, HttpResponse
 
 from freezegun import freeze_time
 
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase
 from rest_framework.authtoken.models import Token
 
 from datetime import timedelta
@@ -209,3 +209,57 @@ class MediaAccessTests(TestCase):
         request = self.factory.get("/some/other/path")
         response = MediaServerMiddleware(lambda r: HttpResponse())(request)
         self.assertEqual(response.status_code, 200)
+
+
+class EmailLocalSettingsTest(APITestCase):
+    """Tests if EMAIL_EXISTS param changes views behavior."""
+
+    @override_settings(EMAIL_EXISTS=True)
+    def test_email_exists(self):
+        """Test if the view returns 200 when email exists."""
+        response = self.client.post(reverse("send_code"), {"email": "test@example.com"})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(
+            "Server need an email configuration. Check local settings",
+            str(response.data),
+        )
+
+        response = self.client.post(reverse("check_code"), {"code": "123456"})
+        self.assertNotIn(
+            "Server need an email configuration. Check local settings",
+            str(response.data),
+        )
+
+        response = self.client.post(
+            reverse("reset_password"), {"email": "test@example.com"}
+        )
+        self.assertNotIn(
+            "Server need an email configuration. Check local settings",
+            str(response.data),
+        )
+
+    @override_settings(EMAIL_EXISTS=False)
+    def test_email_not_exists(self):
+        """Test if the view returns 400 and message when email doesn't exists."""
+        response = self.client.post(reverse("send_code"), {"email": "test@example.com"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Server need an email configuration. Check local settings",
+            str(response.data),
+        )
+
+        response = self.client.post(reverse("check_code"), {"code": "123456"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Server need an email configuration. Check local settings",
+            str(response.data),
+        )
+
+        response = self.client.post(
+            reverse("reset_password"), {"email": "test@example.com"}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Server need an email configuration. Check local settings",
+            str(response.data),
+        )
