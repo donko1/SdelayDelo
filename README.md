@@ -71,81 +71,93 @@ Follow these steps to install and run SdelayDelo locally.
 - Python 3.10+
 - git
 - pip (Python package installer)
+- Redis
 
 ### Linux
 
-1. Clone the repository:
+1. Install Redis:
+   ```bash
+   sudo apt update && sudo apt install -y redis-server
+   sudo systemctl enable redis
+   sudo systemctl start redis 
+   ```
+2. Clone the repository:
    ```bash
    git clone https://github.com/donko1/SdelayDelo.git
    cd SdelayDelo
    ```
-2. Create a virtual environment:
+3. Create a virtual environment:
    ```bash
    python3 -m venv venv
    ```
-3. Activate the virtual environment:
+4. Activate the virtual environment:
    ```bash
    source venv/bin/activate
    ```
-4. Install dependencies:
+5. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-5. Apply migrations:
+6. Apply migrations:
    ```bash
    python3 manage.py migrate
    ```
-6. Create a superuser (admin account):
+7. Create a superuser (admin account):
    ```bash
    python3 manage.py createsuperuser
    ```
-7. Create local settings and **configure it**(optionally):
+8. Create local settings and **configure it**(optionally):
    ```bash
    cp SdelayDelo/local_settings.py.example SdelayDelo/local_settings.py
    ```
-8. Run the development server:
+9. Start Redis:
+   ```bash
+   sudo systemctl restart redis
+   ```
+10. Fill the email fields in local_settings.py to make them working. (optionally)
+11. Run the development server:
    ```bash
    python3 manage.py runserver
    ```
    The server will start at http://127.0.0.1:8000/.
 
-9. Fill the email fields in local_settings.py to make them working. (optionally)
-
 ### Windows
 
-1. Clone the repository:
+1. Install [Redis](https://github.com/microsoft/redis) and start it  
+
+2. Clone the repository:
    ```bash
    git clone https://github.com/donko1/SdelayDelo.git
    cd SdelayDelo
    ```
-2. Create a virtual environment:
+3. Create a virtual environment:
    ```bash
    python -m venv venv
    ```
-3. Activate the virtual environment:
+4. Activate the virtual environment:
    ```bash
    .\venv\Scripts\activate
    ```
-4. Install dependencies:
+5. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-5. Apply migrations:
+6. Apply migrations:
    ```bash
    python manage.py migrate
    ```
-6. Create a superuser (admin account):
+7. Create a superuser (admin account):
    ```bash
    python manage.py createsuperuser
    ```
-7. Create local settings (rename `SdelayDelo/local_settings.py.example` to `SdelayDelo/local_settings.py`) and **configure it**(optionally).
-8. Run the development server:
+8. Create local settings (rename `SdelayDelo/local_settings.py.example` to `SdelayDelo/local_settings.py`) and **configure it**(optionally).
+9. Run the development server:
    ```bash
    python manage.py runserver
    ```
    The server will start at http://127.0.0.1:8000/.
 
-9. Fill the email fields in local_settings.py to make them working. (optionally)
+10. Fill the email fields in local_settings.py to make them working. (optionally)
 
 ## Usage
 
