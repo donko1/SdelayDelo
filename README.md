@@ -163,4 +163,4 @@ Follow these steps to install and run SdelayDelo locally.
 
 1. **Access the application:** Open your web browser and navigate to http://127.0.0.1:8000/.
 2. **Admin Panel:** Access the admin panel at http://127.0.0.1:8000/admin/ and log in with the superuser credentials you created during installation.
-3. **Explore the API:** Use tools like Postman or `curl` to interact with the API endpoints. Pay attention to the required data formats for each endpoint. The icon API expects data as form data. You can see examples of usage in [this file](https://github.com/donko1/SdelayDelo/blob/main/tasks/tests.py).
+3. **Explore the API:** Use tools like Postman or `curl` to interact with the API endpoints. Pay attention to the required data formats for each endpoint. The icon API expects data as form data. You can see examples of usage in [this file](https://github.com/donko1/SdelayDelo/blob/main/tasks/tests.py). To run SdelayDelo test cases, run `python3 manage.py test`. If you need to run slow test to check if unban ip after ban run `python3 manage.py test --tag=redis-unban-after-timeout`.

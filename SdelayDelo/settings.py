@@ -28,7 +28,7 @@ if not os.path.exists(LOGS_DIR):
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 TESTING = sys.argv[1:2] == ["test"]
 

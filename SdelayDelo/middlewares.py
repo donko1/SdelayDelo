@@ -1,6 +1,6 @@
 from datetime import timedelta
 from django.conf import settings
-from django.utils.timezone import now
+from django.utils import timezone
 from django.http import HttpResponse
 from django.contrib.auth.models import AnonymousUser
 
@@ -10,6 +10,9 @@ from tasks.models import Tag
 
 import os
 import logging
+import time
+
+import redis
 
 logger = logging.getLogger(__name__)
 
@@ -73,54 +76,67 @@ class MediaServerMiddleware:
 
 
 class ErrorTrackingMiddleware:
-    """Bans if too many errors"""
+    """Middleware for tracking errors and banning IPs."""
 
     def __init__(self, get_response):
         self.get_response = get_response
-        self.error_logs = {}
-        self.banned_ips = {}
-        self.error_threshold = getattr(settings, "ERROR_THRESHOLD", 10)
-        self.ban_duration_hours = getattr(settings, "BAN_DURATION_MINUTES", 60) / 60
-        self.error_window_minutes = getattr(settings, "ERROR_WINDOW_MINUTES", 10)
+        self.redis = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=0,
+            decode_responses=True,  # Auto-convert bytes to str
+        )
+        self.error_threshold = getattr(settings, "ERROR_THRESHOLD", 3)
+        self.ban_duration = (
+            getattr(settings, "BAN_DURATION_MINUTES", 60) * 60
+        )  # in seconds
+        self.error_window = (
+            getattr(settings, "ERROR_WINDOW_MINUTES", 10) * 60
+        )  # in seconds
 
     def __call__(self, request):
-        ip_address = self.get_client_ip(request)
-        current_time = now()
+        ip = self._get_client_ip(request)
 
-        # Unban IP if the ban duration has expired
-        if ip_address in self.banned_ips:
-            ban_end_time = self.banned_ips[ip_address]
-            if current_time > ban_end_time:
-                logger.debug(f"Unban {ip_address}")
-                del self.banned_ips[ip_address]
-            else:
-                logger.debug(f"Trying from {ip_address}, but it is banned")
-                return HttpResponse(
-                    "Ur ip has been banned due to too many mistakes. Try again later",
-                    status=403,
-                )
+        # Check if IP is banned
+        if self.redis.exists(f"banned:{ip}"):
+            logger.info(f"IP {ip} is banned")
+            return HttpResponse("IP blocked", status=403)
 
-        # Process the request and log errors if necessary
         response = self.get_response(request)
-        if response.status_code >= 400 and response.status_code != 404:
-            logger.error(f"Error response {response.status_code} for IP {ip_address}")
-            self.log_error(ip_address, current_time)
+
+        # Log error for 400-499 status codes (except 404)
+        if 400 <= response.status_code < 500 and response.status_code != 404:
+            self._handle_error(ip)
+
         return response
 
-    def log_error(self, ip_address, current_time):
-        window_start = current_time - timedelta(minutes=self.error_window_minutes)
-        if ip_address not in self.error_logs:
-            self.error_logs[ip_address] = []
-        self.error_logs[ip_address] = [
-            ts for ts in self.error_logs[ip_address] if ts > window_start
-        ]
-        self.error_logs[ip_address].append(current_time)
-        if len(self.error_logs[ip_address]) >= self.error_threshold:
-            logger.warning(f"Banning IP {ip_address} due to too many errors")
-            self.banned_ips[ip_address] = current_time + timedelta(
-                hours=self.ban_duration_hours
-            )
+    def _handle_error(self, ip):
+        """Increment error counter and ban IP if threshold is reached."""
+        error_key = f"errors:{ip}"
+        banned_key = f"banned:{ip}"
 
-    @staticmethod
-    def get_client_ip(request):
-        return request.META.get("REMOTE_ADDR", "")
+        try:
+            # Set initial counter with TTL if not exists, else increment
+            error_count = self.redis.incr(error_key)
+            if error_count == 1:  # Key was just created
+                self.redis.expire(error_key, self.error_window)
+
+            logger.debug(f"Error count for {ip}: {error_count}/{self.error_threshold}")
+
+            # Ban IP if threshold reached
+            if error_count >= self.error_threshold:
+                self.redis.setex(banned_key, self.ban_duration, "1")
+                self.redis.delete(error_key)  # Reset counter
+                logger.warning(f"Banned IP {ip} for {self.ban_duration//60} minutes")
+
+        except redis.exceptions.ResponseError as e:
+            # Reset corrupted key if wrong type (e.g., string instead of number)
+            if "WRONGTYPE" in str(e):
+                self.redis.delete(error_key)
+                logger.error(f"Reset corrupted key {error_key}")
+            else:
+                logger.error(f"Redis error: {str(e)}")
+
+    def _get_client_ip(self, request):
+        """Extract client IP from request."""
+        return request.META.get("REMOTE_ADDR", "0.0.0.0")

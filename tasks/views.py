@@ -185,6 +185,7 @@ def verify_code(request):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+    logger.error("Trying verify code but email settings are not correct")
     return Response(
         {"detail": "Server need an email configuration. Check local settings"},
         status=status.HTTP_400_BAD_REQUEST,

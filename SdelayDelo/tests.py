@@ -1,5 +1,5 @@
 from urllib import request
-from django.test import TestCase, override_settings, RequestFactory, Client
+from django.test import TestCase, override_settings, RequestFactory, Client, tag
 from django.urls import reverse
 from django.conf import settings
 from django.utils.timezone import now
@@ -14,7 +14,11 @@ from rest_framework.authtoken.models import Token
 from datetime import timedelta
 import tempfile
 import os
+import time
 import logging
+import redis
+import sys
+import unittest
 
 from SdelayDelo.local_settings import ALLOWED_HOSTS
 from tasks.models import Tag
@@ -27,6 +31,19 @@ logger = logging.getLogger(__name__)
 
 media_root = settings.MEDIA_ROOT
 User = get_user_model()
+
+
+def reset_redis():
+    """Complete Redis flush (use only for testing!)"""
+    try:
+        r = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=0,  # Используйте ту же DB, что и в middleware
+        )
+        r.flushall()
+    except redis.RedisError as e:
+        print(f"[ERROR] Redis reset failed: {str(e)}")
 
 
 class ErrorTrackingMiddlewareTest(TestCase):
@@ -42,6 +59,7 @@ class ErrorTrackingMiddlewareTest(TestCase):
         """
         Set up the test environment, including API client
         """
+        reset_redis()
         self.client = APIClient()  # Initialize API client
         self.test_url = reverse("check_code")  # Test endpoint
         self.ip_address = "192.168.1.100"  # Test IP address
@@ -57,7 +75,7 @@ class ErrorTrackingMiddlewareTest(TestCase):
             Response: The simulated HTTP response.
         """
         self.client.defaults["REMOTE_ADDR"] = self.ip_address
-        return self.client.get(self.test_url, HTTP_X_STATUS=status_code)
+        return self.client.post(self.test_url, HTTP_X_STATUS=status_code)
 
     @freeze_time("2025-01-01 12:00:00")
     @override_settings(
@@ -79,34 +97,30 @@ class ErrorTrackingMiddlewareTest(TestCase):
         # The IP should now be banned
         response = self.simulate_request(400)
         self.assertEqual(response.status_code, 403)
-        self.assertIn("Ur ip has been banned", response.content.decode())
+        self.assertIn("IP blocked", response.content.decode())
 
     @freeze_time("2025-01-01 12:00:00")
+    @unittest.skipUnless(
+        "--tag=redis-unban-after-timeout" in sys.argv,
+        "Long-running test (skipped by default)",
+    )
+    @tag("redis-unban-after-timeout")
     @override_settings(
-        ERROR_THRESHOLD=3, ERROR_WINDOW_MINUTES=1, BAN_DURATION_MINUTES=5
+        ERROR_THRESHOLD=3,
+        ERROR_WINDOW_MINUTES=1,
+        BAN_DURATION_MINUTES=1,
     )
     def test_ip_unbanned_after_timeout(self):
-        """
-        Test that an IP address is unbanned after the ban duration expires.
-
-        Steps:
-        1. Simulate `ERROR_THRESHOLD` number of error responses to trigger a ban.
-        2. Confirm the IP is banned immediately after reaching the threshold.
-        3. Advance time beyond the ban duration and verify the IP is unbanned.
-        """
-        # Trigger the ban
         for _ in range(settings.ERROR_THRESHOLD):
             self.simulate_request(400)
 
-        # Confirm the IP is banned
         response = self.simulate_request(400)
         self.assertEqual(response.status_code, 403)
 
-        # Move time forward to after the ban duration
-        unban_time = now() + timedelta(minutes=settings.BAN_DURATION_MINUTES + 1)
-        with freeze_time(unban_time):
-            response = self.simulate_request(200)
-            self.assertNotEqual(response.status_code, 403)  # Ban lifted
+        time.sleep(60)
+
+        response = self.simulate_request(200)
+        self.assertNotEqual(response.status_code, 403)
 
 
 @override_settings(DEBUG=False, ALLOWED_HOSTS=["*"])
@@ -126,7 +140,7 @@ class Test404PageIsCustom(TestCase):
             response,
             "Запрошенная страница не существует.",
             status_code=404,
-            html=True,  #
+            html=True,
         )
 
 
