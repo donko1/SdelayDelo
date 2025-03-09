@@ -7,13 +7,11 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
-
 import hashlib
 import uuid
 from datetime import timedelta
 import logging
 import pytz
-
 
 from .validators import validate_hex_color
 

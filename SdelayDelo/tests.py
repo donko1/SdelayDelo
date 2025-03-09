@@ -2,16 +2,14 @@ from urllib import request
 from django.test import TestCase, override_settings, RequestFactory, Client, tag
 from django.urls import reverse
 from django.conf import settings
-from django.utils.timezone import now
 from django.contrib.auth import get_user_model
-from django.http import HttpResponseForbidden, HttpResponse
+from django.http import HttpResponse
 
 from freezegun import freeze_time
 
 from rest_framework.test import APIClient, APITestCase
 from rest_framework.authtoken.models import Token
 
-from datetime import timedelta
 import tempfile
 import os
 import time

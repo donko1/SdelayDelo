@@ -27,7 +27,7 @@ from PIL import Image
 
 from SdelayDelo.settings import TESTING
 
-from .models import Note, Tag, custom_user, TokenToEmail
+from .models import Note, Tag, TokenToEmail
 from .serializers import TagSerializer, NoteSerializer, IconUploadSerializer
 from .validators import is_hex_color
 from .views import who_am_i

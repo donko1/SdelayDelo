@@ -1,4 +1,3 @@
-from platform import architecture
 from rest_framework.decorators import (
     api_view,
     throttle_classes,
@@ -21,7 +20,6 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.conf import settings
-from django.db.models import Q
 
 import uuid
 import logging

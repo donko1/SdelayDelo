@@ -1,6 +1,4 @@
-from datetime import timedelta
 from django.conf import settings
-from django.utils import timezone
 from django.http import HttpResponse
 from django.contrib.auth.models import AnonymousUser
 
@@ -10,7 +8,6 @@ from tasks.models import Tag
 
 import os
 import logging
-import time
 
 import redis
 
