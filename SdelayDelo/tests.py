@@ -275,3 +275,18 @@ class EmailLocalSettingsTest(APITestCase):
             "Server need an email configuration. Check local settings",
             str(response.data),
         )
+
+
+class APIDocsTestCase(TestCase):
+    def test_api_docs_endpoint(self):
+        # Get the URL for the 'docs' endpoint
+        url = reverse("docs")
+
+        # Make a GET request to the docs endpoint
+        response = self.client.get(url)
+
+        # Check that the response status code is 200 (OK)
+        self.assertEqual(response.status_code, 200)
+
+        # Check that the content type is HTML
+        self.assertEqual(response["Content-Type"], "text/html; charset=utf-8")
