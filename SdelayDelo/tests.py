@@ -23,12 +23,21 @@ from tasks.models import Tag
 
 from .middlewares import MediaServerMiddleware
 
+from colorama import Fore, init
+
+init()
 
 logger = logging.getLogger(__name__)
 
 
 media_root = settings.MEDIA_ROOT
 User = get_user_model()
+
+
+print(Fore.YELLOW + "TO RUN SLOW TESTS RUN COMMAND:")
+print(Fore.GREEN + "python3 manage.py test --tag=redis-unban-after-timeout")
+
+print(Fore.WHITE)
 
 
 def reset_redis():
