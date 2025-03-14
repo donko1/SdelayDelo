@@ -9,3 +9,4 @@ __pycache__/
 logs/
 media/
 !/media/icons/test.png
+nginx_linux.conf

@@ -525,7 +525,7 @@ def who_am_i(request):
 @permission_classes([IsAuthenticated])
 def logout(request):
     """
-    Logs out the authenticated user and returns a success message.
+    Logout the authenticated user and returns a success message.
     """
     user = request.user
     if user.is_authenticated:
