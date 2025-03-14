@@ -521,6 +521,25 @@ def who_am_i(request):
         )
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def logout(request):
+    """
+    Logs out the authenticated user and returns a success message.
+    """
+    user = request.user
+    if user.is_authenticated:
+        logger.info(f"User {user.username} logged out")
+        user.auth_token.delete()  # Deletes the authentication token for the user
+        return Response({"detail": "User logged out successfully."}, status=200)
+    else:
+        logger.warning("User tried to log out but was not authenticated")
+        return Response(
+            {"detail": "Authentication credentials were not provided."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+
 class NoteViewSet(viewsets.ModelViewSet):
     """
     ViewSet for the Note model.

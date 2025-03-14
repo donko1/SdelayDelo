@@ -2556,8 +2556,8 @@ class LogoutApiTestCase(APITestCase):
 
     def test_logout_page_with_login(self):
         """Tests if logout page is accessible with login. Also testing deleting Token"""
-        response = self.client.get(reverse("logout"), headers=self.header_user)
         self.assertTrue(Token.objects.all().exists())
+        response = self.client.get(reverse("logout"), headers=self.header_user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("Logged out", str(response.data))
+        self.assertIn("logged out", str(response.data))
         self.assertFalse(Token.objects.all().exists())
