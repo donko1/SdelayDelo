@@ -540,6 +540,23 @@ def logout(request):
         )
 
 
+if settings.DEBUG:
+    @api_view(["POST"])
+    def fast_create_user_for_test(request):
+        """
+        Fast create user and return key to access. Need to testing next part
+        """
+        password = request.data.get("password")
+        username = request.data.get("username")
+
+        user = User.objects.create(
+            username=username, email="example@example.com", password=password
+        )
+
+        access_token_user = Token.objects.create(user=user).key
+
+        return Response({"detail":"Access token created", "token":access_token_user}, status=status.HTTP_200_OK)
+
 class NoteViewSet(viewsets.ModelViewSet):
     """
     ViewSet for the Note model.
@@ -862,3 +879,4 @@ class IconViewSet(viewsets.ViewSet):
         serializer.delete()
         logger.info(f"Icon deleted for tag by user {request.user.username}")
         return Response(status=status.HTTP_204_NO_CONTENT)
+
