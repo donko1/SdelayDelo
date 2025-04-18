@@ -1,4 +1,5 @@
 from django.urls import path, include
+from django.conf import settings
 
 from rest_framework import routers
 
@@ -30,6 +31,9 @@ urlpatterns = [
     path("api/login", views.login, name="login"),
     path("api/change-userinfo/", views.change_userinfo, name="change-userinfo"),
     path("api/logout", views.logout, name="logout"),
-    path("api/fast_create_user", views.fast_create_user_for_test, name="fast_create_user_for_test"),
     path("api/", include(router.urls)),
 ]
+
+if settings.DEBUG:
+    urlpatterns.append(path("api/fast_create_user", views.fast_create_user_for_test, name="fast_create_user_for_test"),)
+

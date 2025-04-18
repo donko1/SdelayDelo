@@ -550,8 +550,12 @@ if settings.DEBUG:
         username = request.data.get("username")
 
         user = User.objects.create(
-            username=username, email="example@example.com", password=password
+            username=username, email="example@example.com"
         )
+
+        user.set_password(password) 
+        user.save()
+ 
 
         access_token_user = Token.objects.create(user=user).key
 
