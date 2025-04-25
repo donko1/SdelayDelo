@@ -328,7 +328,15 @@ def register_user(request):
                 {"access_token": user_token.key}, status=status.HTTP_201_CREATED
             )
         else:
+            errors = serializer.errors
             logger.error(f"Registration failed for user with token {token}")
+            if "{'password': [ErrorDetail(string='Убедитесь, что это значение содержит не менее 8 символов.', code='min_length')]}" in str(errors):
+                logger.error(f"Password less than 8 symbols")
+                return Response({"detail":"password_8_symbols"}, status=status.HTTP_400_BAD_REQUEST)
+            if "This username is already registered" in str(errors):
+                logger.error(f"Username isnt uniq")
+                return Response({"detail":"username_isnt_uniq"}, status=status.HTTP_400_BAD_REQUEST)
+            logger.error(f"UnknownError: {errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except TokenToEmail.DoesNotExist:
         logger.error(f"Invalid registration token for register_user")

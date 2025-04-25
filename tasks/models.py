@@ -200,6 +200,7 @@ class TokenToEmail(models.Model):
         """
         Overriding the save method to generate the verification code, token, and salt.
         """
+        # TODO: сделай так, что бы все старые токены убивались
         if not self.code:
             self.code = get_random_string(length=6, allowed_chars="0123456789")
             logger.debug(f"Generated verification code for {self.email}: {self.code}")
@@ -255,6 +256,7 @@ class TokenToEmail(models.Model):
         Returns:
         - bool: True if the code is correct and the token is not expired; False otherwise.
         """
+        logger.debug(f"now:{timezone.now()}; expires_at:{self.expires_at}")
         if self.code == code and timezone.now() <= self.expires_at:
             logger.info(f"Email {self.email} successfully verified")
             return True

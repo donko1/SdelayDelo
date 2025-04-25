@@ -77,6 +77,15 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise ValidationError("This email is already registered.")
         return value
 
+    def validate_username(self, value):
+        """
+        Validates that the username is uniq
+        """
+        if User.objects.filter(username=value).exists():
+            logger.debug(f"Username {value} is already registered")
+            raise ValidationError("This username is already registered.")
+        return value
+
     def create(self, validated_data):
         """
         Creates a new user instance and returns it.
