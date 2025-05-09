@@ -463,6 +463,25 @@ def login(request):
 
 
 @api_view(["GET"])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
+def get_email_by_username(request):
+    """
+    This function returns email by username
+    """
+    try:
+        username = request.GET.get("username")
+        logger.debug(f"Getting email by username: {username}")
+        assert username is not None
+    except AssertionError:
+        return Response({"detail":"No username in request"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(username=username)
+    if user:
+        return Response({"email":user[0].email}, status=status.HTTP_200_OK)
+    return Response({"detail":"No user with this username"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
 @throttle_classes([WhoAmIRateThrottle])
 def who_am_i(request):
     """

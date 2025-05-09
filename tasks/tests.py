@@ -2561,3 +2561,33 @@ class LogoutApiTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("logged out", str(response.data))
         self.assertFalse(Token.objects.all().exists())
+
+class GetEmailByUsername(APITestCase):
+    """Tests if get_email_by_username view works correctly"""
+
+    def setUp(self):
+        self.user_username = "testuser"
+        self.user_email = "example@example.com"
+        self.user = User.objects.create(
+            username=self.user_username, email=self.user_email, password="qwerty123"
+        )
+        self.url = reverse("get_email_by_username")
+
+    def test_no_data(self):
+        """Tests if no data view returns 400"""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["detail"], "No username in request")
+
+    def test_not_correct_username(self):
+        """Tests if not correct username returns 400"""
+        response = self.client.get(self.url, {"username":"not_correct_username"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["detail"], "No user with this username")
+
+    def test_correctly_working(self):
+        """Tests if correctly working with correct data"""
+        response = self.client.get(self.url, {"username":self.user_username})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["email"], self.user_email)
+
