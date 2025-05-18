@@ -1240,10 +1240,7 @@ if settings.EMAIL_EXISTS:
             url = reverse("login")
             url_check_code = reverse("check_code")
             check_token_url = reverse("login")
-            token_obj = TokenToEmail.objects.create(
-                email="test@example.com", is_verified=True
-            )
-
+            
             password = "qwerty123"
             hashed_password = make_password(password)
 
@@ -1253,9 +1250,6 @@ if settings.EMAIL_EXISTS:
                 password=hashed_password,
                 fa_2=True,
             )
-            raw_token = str(uuid.uuid4())
-            token_obj.token_hash = TokenToEmail.hash_token(raw_token)
-            token_obj.save()
 
             response = self.client.post(
                 url,
@@ -1267,6 +1261,14 @@ if settings.EMAIL_EXISTS:
             )
             self.assertEqual(f"t**t@example.com", response.data["email"])
 
+
+            token_obj = TokenToEmail.objects.create(
+                email="test@example.com", is_verified=True
+            )
+            raw_token = str(uuid.uuid4())
+            token_obj.token_hash = TokenToEmail.hash_token(raw_token)
+            token_obj.save()
+            
             response = self.client.post(
                 check_token_url, {"email": "test@example.com", "token": raw_token}
             )

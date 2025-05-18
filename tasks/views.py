@@ -575,9 +575,11 @@ if settings.DEBUG:
         """
         password = request.data.get("password")
         username = request.data.get("username")
+        email = request.data.get("email")
+        logger.info(f"Fast creating user with {email} for {username}")
 
         user = User.objects.create(
-            username=username, email="example@example.com"
+            username=username, email=email
         )
 
         user.set_password(password) 

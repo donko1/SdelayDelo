@@ -198,9 +198,8 @@ class TokenToEmail(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Overriding the save method to generate the verification code, token, and salt.
+        Overriding the save method to generate the verification code, token, and salt. Removing all 
         """
-        # TODO: сделай так, что бы все старые токены убивались
         if not self.code:
             self.code = get_random_string(length=6, allowed_chars="0123456789")
             logger.debug(f"Generated verification code for {self.email}: {self.code}")
@@ -214,6 +213,8 @@ class TokenToEmail(models.Model):
                 days=1
             )  # Default expiration: 1 day
             logger.debug(f"Set expiration date for {self.email}: {self.expires_at}")
+
+        self.__class__.objects.filter(email=self.email).exclude(pk=self.pk).delete()
         super().save(*args, **kwargs)
         logger.info(f"Saved TokenToEmail for {self.email}")
 
