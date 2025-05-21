@@ -22,6 +22,9 @@ def validate_timezone(value):
     if value not in pytz.all_timezones:
         raise ValidationError(f"{value} is not a valid timezone.")
 
+def default_token_expiration():
+    return timezone.now() + timedelta(minutes=10)
+
 
 class custom_user(AbstractUser):
 
@@ -189,7 +192,7 @@ class TokenToEmail(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     expires_at = models.DateTimeField(
-        default=timezone.now() + timedelta(minutes=10),
+        default=default_token_expiration,
         verbose_name="Дата истечения токена",
     )
     is_verified = models.BooleanField(
