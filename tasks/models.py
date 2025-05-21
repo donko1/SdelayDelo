@@ -211,11 +211,6 @@ class TokenToEmail(models.Model):
             self.salt = get_random_string(32)  # Generate a unique salt
             self.token_hash = self.hash_token(raw_token, self.salt)
             logger.debug(f"Generated token hash for {self.email}")
-        if not self.expires_at:
-            self.expires_at = timezone.now() + timedelta(
-                days=1
-            )  # Default expiration: 1 day
-            logger.debug(f"Set expiration date for {self.email}: {self.expires_at}")
 
         self.__class__.objects.filter(email=self.email).exclude(pk=self.pk).delete()
         super().save(*args, **kwargs)
