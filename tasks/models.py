@@ -77,7 +77,6 @@ class Tag(models.Model):
     - user: The owner of the tag.
     - colour: The color associated with the tag (e.g., #FF0000).
     - icon: An optional icon name for the tag.
-    - is_archived: status of archived or not the note. Default value is False
     """
 
     title = models.CharField(max_length=255, verbose_name="Заголовок")
@@ -132,6 +131,7 @@ class Note(models.Model):
     - date_create: The date and time when the note was created.
     - date_changed: The date and time when the note was last modified.
     - tags: Tags associated with the note (many-to-many relationship).
+    - is_archived: status of archived or not the note. Default value is False
     """
 
     objects = NoteManager()
