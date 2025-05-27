@@ -158,7 +158,7 @@ def verify_code(request):
         try:
             token_obj = TokenToEmail.objects.get(email=email)
 
-            if token_obj.validate_email(code) and not token_obj.is_verified:
+            if token_obj.validate_email(code):
                 # Generate a new registration token
                 raw_token = str(uuid.uuid4())
                 token_obj.token_hash = TokenToEmail.hash_token(raw_token)
@@ -170,6 +170,11 @@ def verify_code(request):
                     {"message": "Email successfully verified.", "token": raw_token},
                     status=status.HTTP_200_OK,
                 )
+            elif token_obj.is_verified:
+                logger.info("Code is verified")
+                return Response(
+                    {"detail":"Code is verified"},
+                    status=status.HTTP_200_OK)
             else:
                 logger.warning(f"Invalid code or expired token for email {email}")
                 return Response(
