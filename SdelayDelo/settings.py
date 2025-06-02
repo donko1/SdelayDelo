@@ -233,7 +233,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "4/m",
         "user": "10/m",
-        "whoami": "5/m",
+        "whoami": "15/m",
         "note_and_tag_read": "300/m",
         "note_and_tag_write": "30/m",
         "icon": "5/min",

@@ -541,6 +541,8 @@ def who_am_i(request):
                     "language": user.language,
                     "timezone": user.timezone,
                     "mode": "PRODUCTION",
+                    "username": user.username,
+
                 }
             }
         )
@@ -548,8 +550,9 @@ def who_am_i(request):
     else:
         logger.warning("who_am_i called by unauthenticated user")
         return Response(
-            {"detail": "Authentication credentials were not provided."},
-            status=status.HTTP_401_UNAUTHORIZED,
+            {"user": {
+            "usernme":"Guest"
+            }},
         )
 
 
