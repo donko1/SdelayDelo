@@ -120,6 +120,9 @@ class NoteManager(models.Manager):
     def archived(self):
         return self.get_queryset().archived()
 
+    def get_all(self):
+        return super().get_queryset()
+
 
 class Note(models.Model):
     """

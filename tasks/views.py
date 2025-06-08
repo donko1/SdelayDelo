@@ -621,6 +621,10 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         logger.debug(f"Fetching notes for user {user.username}")
+        
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            return Note.objects.get_all().filter(user=user)
+        
         return Note.objects.filter(user=user)
 
     def perform_create(self, serializer):
@@ -642,26 +646,17 @@ class NoteViewSet(viewsets.ModelViewSet):
         Raises PermissionDenied if the current user is not the owner.
         """
         try:
-            instance = self.get_object()
-            if instance.user != self.request.user:
-                logger.warning(
-                    f"User {self.request.user.username} tried to update a note they do not own"
-                )
-                raise PermissionDenied("You can't update this object, it is not yours!")
+            instance = self.get_object()  
+            logger.debug(f"Updating {instance.id}")
             serializer.save()
             logger.info(f"Note updated for user {self.request.user.username}")
-        except PermissionDenied as e:
-            logger.error(
-                f"Permission denied for user {self.request.user.username}: {e}"
-            )
-            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        
         except ObjectDoesNotExist:
             logger.error(f"Note not found for user {self.request.user.username}")
             return Response(status=status.HTTP_404_NOT_FOUND)
+        
         except Exception as e:
-            logger.error(
-                f"Error updating note for user {self.request.user.username}: {e}"
-            )
+            logger.error(f"Update error: {e}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_destroy(self, instance):
@@ -713,9 +708,14 @@ class NoteViewSetV2(NoteViewSet):
         """
         Returns a queryset of notes that belong to the current user and are not archived.
         """
-        user = self.request.user
-        logger.debug(f"Fetching notes for user {user.username}")
-        return Note.objects.filter(user=user, is_archived=False)
+        queryset = super().get_queryset()
+        
+        if self.action == 'list':
+            queryset = queryset.filter(is_archived=False)
+            logger.debug("Applied V2 filter: is_archived=False")
+        
+        return queryset
+
 
 
 class NoteViewSetV3(NoteViewSetV2):

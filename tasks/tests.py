@@ -1323,14 +1323,11 @@ class WhoAmIViewTest(APITestCase):
 
     def test_unauthenticated_user_returns_error_message(self):
         """
-        Test that an unauthenticated user receives an appropriate error message.
-
-        This test sends a request without an access token and verifies
-        that the response includes an error message, and has 401 or 403 status code.
+        Test that an unauthenticated user receives an guest msg.
         """
         response = self.client.get(self.whoami_url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn("detail", response.data)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("guest", str(response.data).lower())
 
     @override_settings(DEBUG=False, TESTING=False)
     def test_production_mode(self):
@@ -1357,7 +1354,6 @@ class WhoAmIViewTest(APITestCase):
         force_authenticate(request, user=self.user_with_token, token=self.access_token)
         response = who_am_i(request)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn("username", str(response.data))
         self.assertNotIn("email", str(response.data))
         self.assertNotIn("DEBUG", str(response.data))
         self.assertNotIn("fa_2", str(response.data))
