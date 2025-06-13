@@ -2259,6 +2259,28 @@ class NoteTestViewSetV3(APITestCase):
 
         self.assertIn("This method is only in v3+ versions", str(response.data))
 
+    def test_my_day(self):
+        """Test if my_day endpoint returns only today's unarchived notes"""
+
+        self.note_1.date_of_note = timezone.now().date()
+        self.note_1.save()
+
+        url = reverse("note_v3-list") + "my_day/"
+        response = self.client.get(url, headers=self.header_user)
+
+        self.assertEqual(response.status_code, 200)
+
+        titles = [note["title"] for note in response.data["results"]]
+
+        self.assertIn("Note 1", titles)
+
+        self.assertNotIn("Note 3", titles)
+
+        self.assertNotIn("Note 2", titles)
+        self.assertNotIn("Note 4", titles)
+        self.assertNotIn("Note 5", titles)
+
+
 
 class IconUploadSerializerTest(APITestCase):
     def setUp(self):

@@ -23,6 +23,7 @@ from django.conf import settings
 
 import uuid
 import logging
+from datetime import date
 
 from .models import TokenToEmail, Note, Tag
 from .serializers import (
@@ -733,6 +734,21 @@ class NoteViewSetV3(NoteViewSetV2):
         logger.debug(f"Fetching archived notes for user {user.username}")
 
         queryset = Note.objects.filter(user=user, is_archived=True)
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="my_day")
+    def show_my_day(self, request):
+        """
+        Shows only unarchived and my_day notes
+        """
+        user = self.request.user
+        today = date.today()
+        logger.debug(f"Fetching my day for user {user.username}")
+
+        queryset = Note.objects.filter(user=user, is_archived=False, date_of_note=today)
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
 
