@@ -6,6 +6,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.utils.timezone import now
 
 import hashlib
 import uuid
@@ -102,10 +103,21 @@ class UnarchivedNoteQuerySet(models.QuerySet):
     """Queryset for note to add unarchived and archived method"""
 
     def unarchived(self):
-        return self.filter(is_archived=False)
+        return self._auto_archive().filter(is_archived=False)
 
     def archived(self):
-        return self.filter(is_archived=True)
+        return self._auto_archive().filter(is_archived=True)
+
+    def _auto_archive(self):
+        expired_notes = self.filter(
+            date_of_note__lt=now().date(),
+            is_archived=False
+        )
+
+        if expired_notes.exists():
+            expired_notes.update(is_archived=True)
+
+        return self
 
 
 class NoteManager(models.Manager):

@@ -364,6 +364,13 @@ class NoteModelTest(TestCase):
         """
         Test that the 'unarchived' method returns only non-archived notes.
         """
+        expired_note = Note.objects.create(
+            user=self.user,
+            title="Expired",
+            description="Old note",
+            date_of_note=timezone.now().date() - datetime.timedelta(days=5),
+            is_archived=False,
+        )
 
         note1 = Note.objects.create(
             user=self.user,
@@ -391,12 +398,21 @@ class NoteModelTest(TestCase):
             self.assertFalse(note.is_archived)
         self.assertIn(note1, unarchived_notes)
         self.assertIn(note3, unarchived_notes)
+        self.assertNotIn(expired_note, unarchived_notes)
         self.assertNotIn(note2, unarchived_notes)
 
     def test_archived_notes(self):
         """
         Test that the 'archived' method returns only archived notes.
         """
+        past_date = timezone.now().date() - datetime.timedelta(days=2)
+        auto_note = Note.objects.create(
+            user=self.user,
+            title="Auto Archive",
+            description="Old note.",
+            date_of_note=past_date,
+            is_archived=False,
+        )
         note1 = Note.objects.create(
             user=self.user,
             title="Note 1",
@@ -416,10 +432,12 @@ class NoteModelTest(TestCase):
             is_archived=False,
         )
         archived_notes = Note.objects.archived()
-        self.assertEqual(archived_notes.count(), 1)
+        self.assertEqual(archived_notes.count(), 2)
         for note in archived_notes:
             self.assertTrue(note.is_archived)
         self.assertIn(note2, archived_notes)
+        self.assertIn(auto_note, archived_notes)
+
         self.assertNotIn(note1, archived_notes)
         self.assertNotIn(note3, archived_notes)
 
@@ -523,6 +541,39 @@ class NoteModelTest(TestCase):
         self.assertEqual(
             list(Note.objects.all()), list(Note.objects.order_by("-is_pinned"))
         )
+
+    def test_note_auto_archived_by_date(self):
+        """Test that a note with past date_of_note is auto-archived."""
+        past_date = timezone.now().date() - datetime.timedelta(days=1)
+        note = Note.objects.create(
+            user=self.user,
+            title="Expired Note",
+            description="Should be archived automatically.",
+            date_of_note=past_date,
+            is_archived=False,
+        )
+
+        archived_notes = Note.objects.archived()
+        self.assertIn(note, archived_notes)
+        note.refresh_from_db()
+        self.assertTrue(note.is_archived)
+
+    def test_note_not_auto_archived_if_date_in_future(self):
+        """Test that a note with future date_of_note is not auto-archived."""
+        future_date = timezone.now().date() + datetime.timedelta(days=1)
+        note = Note.objects.create(
+            user=self.user,
+            title="Future Note",
+            description="Should not be archived yet.",
+            date_of_note=future_date,
+            is_archived=False,
+        )
+
+        archived_notes = Note.objects.archived()
+        self.assertNotIn(note, archived_notes)
+        note.refresh_from_db()
+        self.assertFalse(note.is_archived)
+
 
 
 # class NotificationModelTests(TestCase): # TODO: check models.py
