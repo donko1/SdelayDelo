@@ -6,7 +6,6 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from django.utils.timezone import now
 
 import hashlib
 import uuid
@@ -25,6 +24,49 @@ def validate_timezone(value):
 
 def default_token_expiration():
     return timezone.now() + timedelta(minutes=10)
+
+
+class UnarchivedNoteQuerySet(models.QuerySet):
+    """Queryset for note to add unarchived and archived method"""
+
+    def unarchived(self):
+        return self._auto_archive().filter(is_archived=False)
+
+    def archived(self, user=None):
+        qs = self._auto_archive().filter(is_archived=True)
+        if user is not None:
+            qs = qs.filter(user=user)
+        return qs
+
+    def _auto_archive(self):
+        current_date = timezone.now().date()
+        expired_notes = self.filter(
+            date_of_note__lt=current_date,
+            is_archived=False
+        )
+
+        logger.debug(f"Auto-archive started. Now: {current_date}")
+
+        if expired_notes.exists():
+            expired_notes.update(is_archived=True)
+
+        return self
+
+
+class NoteManager(models.Manager):
+    """Manager for note to add unarchived and archived method"""
+
+    def get_queryset(self):
+        return UnarchivedNoteQuerySet(self.model, using=self._db)
+
+    def unarchived(self):
+        return self.get_queryset().unarchived()
+
+    def archived(self, user=None):
+        return self.get_queryset().archived(user=user)
+
+    def get_all(self):
+        return super().get_queryset()
 
 
 class custom_user(AbstractUser):
@@ -97,43 +139,6 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.title
-
-
-class UnarchivedNoteQuerySet(models.QuerySet):
-    """Queryset for note to add unarchived and archived method"""
-
-    def unarchived(self):
-        return self._auto_archive().filter(is_archived=False)
-
-    def archived(self):
-        return self._auto_archive().filter(is_archived=True)
-
-    def _auto_archive(self):
-        expired_notes = self.filter(
-            date_of_note__lt=now().date(),
-            is_archived=False
-        )
-
-        if expired_notes.exists():
-            expired_notes.update(is_archived=True)
-
-        return self
-
-
-class NoteManager(models.Manager):
-    """Manager for note to add unarchived and archived method"""
-
-    def get_queryset(self):
-        return UnarchivedNoteQuerySet(self.model, using=self._db)
-
-    def unarchived(self):
-        return self.get_queryset().unarchived()
-
-    def archived(self):
-        return self.get_queryset().archived()
-
-    def get_all(self):
-        return super().get_queryset()
 
 
 class Note(models.Model):

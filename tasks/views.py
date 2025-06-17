@@ -726,17 +726,17 @@ class NoteViewSetV3(NoteViewSetV2):
     """
 
     @action(detail=False, methods=["get"], url_path="archived")
-    def shows_unarchived(self, request):
+    def shows_archived(self, request):
         """
         Shows only archived notes
         """
-        user = self.request.user
+        user = request.user
         logger.debug(f"Fetching archived notes for user {user.username}")
 
-        queryset = Note.objects.filter(user=user, is_archived=True)
+        queryset = Note.objects.archived(user=user)
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
-
+        
         return self.get_paginated_response(serializer.data)
 
     @action(detail=False, methods=["get"], url_path="my_day")
