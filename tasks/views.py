@@ -773,7 +773,6 @@ class NoteViewSetV3(NoteViewSetV2):
             )
             return Response({"detail":"Error on server side"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
     @action(detail=False, methods=["get"], url_path="by_date")
     def by_date(self, request):
         """
@@ -782,6 +781,8 @@ class NoteViewSetV3(NoteViewSetV2):
         user = self.request.user
 
         date_str = request.query_params.get('date')
+        if date_str is None:
+            return Response({"detail":"No date in data"}, status=status.HTTP_400_BAD_REQUEST)
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
 
         logger.debug(f"Fetching notes for {user.username} for date {target_date}")

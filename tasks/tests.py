@@ -2289,6 +2289,10 @@ class NoteTestViewSetV3(APITestCase):
             date_of_note=datetime.datetime(2270, 1, 1),
             )
 
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("No date in data", str(response.data))
+
         response = self.client.get(url, data={"date": date_of_no_note}, headers=self.header_user)
         self.assertEqual(response.status_code, 200)
         self.assertIn("No notes found on this date", str(response.data))
