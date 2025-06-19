@@ -40,6 +40,8 @@ The following API endpoints are available:
 - **`GET /api/note/{id}/`**: Retrieve a specific note (Default Version).
 - **`PUT /api/note/{id}/`**: Update a specific note (Default Version).
 - **`DELETE /api/note/{id}/`**: Delete a specific note (Default Version).
+- **`GET /api/note/my_day/`**: List notes where date_of_note is today (Default Version).
+- **`DELETE /api/note/clear_archive/`**: Delete all notes in archive (Default Version).
 
 ### Tags Endpoints
 
