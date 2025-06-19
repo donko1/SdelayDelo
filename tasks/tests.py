@@ -2268,6 +2268,43 @@ class NoteTestViewSetV3(APITestCase):
         self.assertEqual(len(Note.objects.all()), 2)
         self.assertIn("3 notes from archive were deleted", str(response.data))
 
+    def test_list_by_date(self):
+        """Tests if list_by_date view works correct"""
+        url = reverse("note_v3-list") + "by_date/" 
+
+        date_of_2_notes = "2270-01-01"
+        date_of_test_note = "1970-01-01"
+        date_of_no_note = "1974-03-01"
+
+        Note.objects.create(
+            user=self.user,
+            title=f"Note 4",
+            description=f"Description 4",
+            date_of_note=datetime.datetime(1970, 1, 1),
+        )
+        Note.objects.create(
+            user=self.user,
+            title=f"Note 5",
+            description=f"Description 4",
+            date_of_note=datetime.datetime(2270, 1, 1),
+            )
+
+        response = self.client.get(url, data={"date": date_of_no_note}, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No notes found on this date", str(response.data))
+
+        response = self.client.get(url, data={"date":date_of_test_note}, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Note 4", str(response.data))
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(url, data={"date":date_of_2_notes}, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Note 5", str(response.data))
+        self.assertIn("Note 2", str(response.data))
+        self.assertEqual(len(response.data), 2)
+
+
     def test_list(self):
         """Tests if listing currently and pagination"""
         url = reverse("note_v3-list")

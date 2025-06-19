@@ -24,6 +24,8 @@ from django.conf import settings
 import uuid
 import logging
 from datetime import date
+from datetime import datetime 
+from dateutil.parser import isoparse
 
 from .models import TokenToEmail, Note, Tag
 from .serializers import (
@@ -765,6 +767,30 @@ class NoteViewSetV3(NoteViewSetV2):
         try:
             count = Note.objects.clear_archive(user=user)
             return Response({"detail": f"{count} notes from archive were deleted"}, status=status.HTTP_200_OK)
+        except Exception as _ex:
+            logger.error(
+                f"Error while clear archive for user {user.username}: {_ex}"
+            )
+            return Response({"detail":"Error on server side"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+    @action(detail=False, methods=["get"], url_path="by_date")
+    def by_date(self, request):
+        """
+        Return all notes by user and date
+        """
+        user = self.request.user
+
+        date_str = request.query_params.get('date')
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        logger.debug(f"Fetching notes for {user.username} for date {target_date}")
+        try:
+            notes = Note.objects.filter(user=user, is_archived=False, date_of_note=target_date)
+            if len(notes) == 0:
+                return Response({"detail":"No notes found on this date"}, status=status.HTTP_200_OK)
+            serializer = self.get_serializer(notes, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as _ex:
             logger.error(
                 f"Error while clear archive for user {user.username}: {_ex}"
