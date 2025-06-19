@@ -754,6 +754,22 @@ class NoteViewSetV3(NoteViewSetV2):
 
         return self.get_paginated_response(serializer.data)
 
+    @action(detail=False, methods=["delete"], url_path="clear_archive")
+    def clear_archive(self, request):
+        """
+        Clear archive
+        """
+        user = self.request.user
+        logger.debug(f"Clearing archive for user {user.username}")
+
+        try:
+            count = Note.objects.clear_archive(user=user)
+            return Response({"detail": f"{count} notes from archive were deleted"}, status=status.HTTP_200_OK)
+        except Exception as _ex:
+            logger.error(
+                f"Error while clear archive for user {user.username}: {_ex}"
+            )
+            return Response({"detail":"Error on server side"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class TagViewSet(viewsets.ModelViewSet):
     """

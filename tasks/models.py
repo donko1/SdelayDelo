@@ -28,7 +28,6 @@ def default_token_expiration():
 
 class UnarchivedNoteQuerySet(models.QuerySet):
     """Queryset for note to add unarchived and archived method"""
-
     def unarchived(self):
         return self._auto_archive().filter(is_archived=False)
 
@@ -64,6 +63,15 @@ class NoteManager(models.Manager):
 
     def archived(self, user=None):
         return self.get_queryset().archived(user=user)
+
+    def clear_archive(self, user):
+        archived_notes = self.archived(user=user)
+        count = len(archived_notes)
+        logger.debug(f"Deleting {count} for {user.username}")
+
+        archived_notes.delete()
+
+        return count
 
     def get_all(self):
         return super().get_queryset()

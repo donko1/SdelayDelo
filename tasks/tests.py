@@ -2260,6 +2260,14 @@ class NoteTestViewSetV3(APITestCase):
             is_archived=True,
         )
 
+    def test_clear_archive(self):
+        """Tests if clear_archive view works correct"""
+        url = reverse("note_v3-list") + "clear_archive/"
+        response = self.client.delete(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(Note.objects.all()), 2)
+        self.assertIn("3 notes from archive were deleted", str(response.data))
+
     def test_list(self):
         """Tests if listing currently and pagination"""
         url = reverse("note_v3-list")
