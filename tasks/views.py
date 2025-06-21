@@ -19,7 +19,10 @@ from django.urls import reverse
 from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
+from django.utils import timezone as django_timezone
 from django.conf import settings
+
+import pytz
 
 import uuid
 import logging
@@ -744,17 +747,34 @@ class NoteViewSetV3(NoteViewSetV2):
     @action(detail=False, methods=["get"], url_path="my_day")
     def show_my_day(self, request):
         """
-        Shows only unarchived and my_day notes
+        Shows only unarchived and my_day notes for user's current date in their timezone
         """
         user = self.request.user
-        today = date.today()
-        logger.debug(f"Fetching my day for user {user.username}")
+        logger.debug(f"Fetching my day for user {user.username} with tz: {user.timezone}")
 
-        queryset = Note.objects.filter(user=user, is_archived=False, date_of_note=today)
+        try:
+            now_utc = django_timezone.now()
+            
+            user_tz = pytz.timezone(user.timezone)
+            
+            user_now = now_utc.astimezone(user_tz)
+            today_in_user_tz = user_now.date()
+            
+            logger.debug(f"UTC now: {now_utc}, User now: {user_now}, User date: {today_in_user_tz}")
+        except Exception as e:
+            logger.error(f"Timezone error for user {user.username}: {str(e)}")
+            today_in_user_tz = now_utc.date()
+
+        queryset = Note.objects.filter(
+            user=user,
+            is_archived=False,
+            date_of_note=today_in_user_tz
+        )
+        
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
-
         return self.get_paginated_response(serializer.data)
+
 
     @action(detail=False, methods=["delete"], url_path="clear_archive")
     def clear_archive(self, request):
