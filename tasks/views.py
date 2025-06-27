@@ -21,6 +21,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.utils import timezone as django_timezone
 from django.conf import settings
+from django.db.models import Q 
 
 import pytz
 
@@ -766,10 +767,12 @@ class NoteViewSetV3(NoteViewSetV2):
             today_in_user_tz = now_utc.date()
 
         queryset = Note.objects.filter(
-            user=user,
-            is_archived=False,
-            date_of_note=today_in_user_tz
+        user=user,
+        is_archived=False
+        ).filter(
+            Q(date_of_note=today_in_user_tz) | Q(date_of_note__isnull=True)
         )
+
         
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
