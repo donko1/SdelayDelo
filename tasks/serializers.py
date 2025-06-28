@@ -51,7 +51,8 @@ class NoteSerializer(serializers.ModelSerializer):
             "date_of_note",
             "tags",
             "user",
-            "is_archived"
+            "is_archived",
+            "is_pinned"
         ]
         read_only_field = ["date_create", "date_changed"]
 
