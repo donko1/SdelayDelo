@@ -11,12 +11,18 @@ import hashlib
 import uuid
 from datetime import timedelta
 import logging
+import random
 import pytz
 
 from .validators import validate_hex_color
 
 logger = logging.getLogger(__name__)
 
+def generate_hex_color():
+    r = random.randint(0, 255)
+    g = random.randint(0, 255)
+    b = random.randint(0, 255)
+    return f"#{r:02x}{g:02x}{b:02x}".upper()
 
 def validate_timezone(value):
     if value not in pytz.all_timezones:
@@ -135,10 +141,10 @@ class Tag(models.Model):
         User, on_delete=models.CASCADE, related_name="tags", verbose_name="Создатель"
     )
     colour = models.CharField(
-        max_length=7, validators=[validate_hex_color], verbose_name="Цвет"
+        max_length=7, validators=[validate_hex_color], verbose_name="Цвет", blank=True
     )  # Hexadecimal color code
     icon = models.CharField(
-        max_length=255, blank=True, null=True, verbose_name="Иконка"
+        max_length=255, blank=True, null=True,  verbose_name="Иконка"
     )
 
     class Meta:
@@ -147,6 +153,14 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        """ Set colour if no color"""
+        if not self.colour:
+            self.colour = generate_hex_color()
+            logger.debug("Generating random color")
+        super().save(*args, **kwargs)
+
 
 
 class Note(models.Model):

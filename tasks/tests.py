@@ -311,6 +311,13 @@ class TagModelTest(TestCase):
         self.assertEqual(tag.colour, "#CCCCCC")
         self.assertIsNone(tag.icon)
 
+    def test_tag_without_color(self):
+        """Tests that a Tag van be created withoaut an color"""
+        tag = Tag.objects.create(title="General", user=self.user)
+        self.assertEqual(tag.title, "General")
+        self.assertEqual(tag.user, self.user)
+        self.assertTrue(is_hex_color(tag.colour))
+
     def test_tag_str_representation(self):
         """Test the string representation of a Tag."""
         tag = Tag.objects.create(title="Important", user=self.user, colour="#FF0000")
@@ -734,14 +741,13 @@ class TagSerializerTestCase(APITestCase):
         Ensures that the serializer raises ValidationError when required
         fields are missing.
         """
-        incomplete_data = {"title": "Incomplete Tag"}
+        incomplete_data = {"colour":"#FF0000"}
         request = self.factory.post(
             reverse("tag-list"), data=incomplete_data, format="json"
         )
         request.user = self.user
         serializer = TagSerializer(data=incomplete_data, context={"request": request})
         self.assertFalse(serializer.is_valid())
-        self.assertIn("colour", serializer.errors)
 
     def test_valid_hex_color(self):
         """
@@ -1741,6 +1747,9 @@ class TagTestViewSet(APITestCase):
             "title": "Tag 1 by another user",
             "colour": "#FF0000",
         }
+        self.tag_with_no_color = {
+            "title":"Example"
+        }
 
     def test_list(self):
         """Tests if main page returns list of notes"""
@@ -1765,6 +1774,21 @@ class TagTestViewSet(APITestCase):
         response = self.client.get(url, headers=self.header_user)
         self.assertEqual(response.status_code, 200)
         self.assertIn("Tag 1", response.data[0]["title"])
+
+    def test_create_with_no_color(self):
+        """Tests if currently create if no color"""
+        url = reverse("tag-list")
+        response = self.client.post(
+            url, headers=self.header_user, data=self.tag_with_no_color
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("Example", response.data["title"])
+        self.assertTrue(is_hex_color(response.data["colour"]))
+
+        response = self.client.get(url, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Example", response.data[0]["title"])
 
     def test_change(self):
         """Tests if changes are correctly working"""

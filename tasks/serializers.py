@@ -121,6 +121,13 @@ class TagSerializer(serializers.ModelSerializer):
         model = Tag
         fields = ["id", "title", "user", "colour", "icon"]
         read_only_field = ["id", "user"]
+        extra_kwargs = {
+            'colour': {
+                'required': False,  
+                'allow_blank': True  
+            }
+        }
+
 
     def validate_colour(self, value: str) -> str:
         """
@@ -135,6 +142,8 @@ class TagSerializer(serializers.ModelSerializer):
         Raises:
             serializers.ValidationError: If the color code is not valid.
         """
+        if value == "":
+            return value
         logger.debug(f"Validating {value} as hex-colour...")
         if not is_hex_color(value):
             logger.error(f"Invalid HEX color code: {value}")

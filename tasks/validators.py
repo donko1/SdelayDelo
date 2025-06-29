@@ -7,6 +7,8 @@ def is_hex_color(value: str) -> bool:
     Checks if a string is a valid HEX color.
     Supports formats: #RGB, #RRGGBB.
     """
+    if value == "":
+        return True
     pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
     return bool(re.match(pattern, value))
 
