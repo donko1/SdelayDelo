@@ -391,6 +391,7 @@ def change_userinfo(request) -> Response:
 def login(request):
     """
     view to login by username/email and password
+    returns in request if requires2FA: "requires2FA": True 
     """
     password = request.data.get("password")
     username = request.data.get("username")
@@ -464,7 +465,7 @@ def login(request):
         email = format_email(email)
         logger.info(f"2FA initiated for user {user.username}")
         return Response(
-            {"detail": f"Now visit {url_check_code} to continue", "email": email},
+            {"detail": f"Now visit {url_check_code} to continue", "email": email, "requires2FA": True},
             status=202,
         )
 
@@ -652,12 +653,16 @@ class NoteViewSet(viewsets.ModelViewSet):
         Updates an existing note, verifying that the current user is the owner.
         Raises PermissionDenied if the current user is not the owner.
         """
+        if not serializer.is_valid():
+            logger.error(f"Validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         try:
             instance = self.get_object()  
+
             logger.debug(f"Updating {instance.id}")
             serializer.save()
             logger.info(f"Note updated for user {self.request.user.username}")
-        
+
         except ObjectDoesNotExist:
             logger.error(f"Note not found for user {self.request.user.username}")
             return Response(status=status.HTTP_404_NOT_FOUND)

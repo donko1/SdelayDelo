@@ -37,7 +37,7 @@ class NoteSerializer(serializers.ModelSerializer):
     # if not settings.TESTING:
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
     date_of_note = serializers.DateField(
-        format="%d/%m/%Y", input_formats=["%d/%m/%Y", "%Y-%m-%d"], required=False, allow_null=True  
+        format="%d/%m/%Y", input_formats=["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"], required=False, allow_null=True  
     )
 
     class Meta:
