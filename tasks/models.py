@@ -35,27 +35,14 @@ def default_token_expiration():
 class UnarchivedNoteQuerySet(models.QuerySet):
     """Queryset for note to add unarchived and archived method"""
     def unarchived(self):
-        return self._auto_archive().filter(is_archived=False)
+        return self.filter(is_archived=False)  # Чистый фильтр без автоархива
 
     def archived(self, user=None):
-        qs = self._auto_archive().filter(is_archived=True)
-        if user is not None:
+        qs = self.filter(is_archived=True)
+        if user:
             qs = qs.filter(user=user)
         return qs
 
-    def _auto_archive(self):
-        current_date = timezone.now().date()
-        expired_notes = self.filter(
-            date_of_note__lt=current_date,
-            is_archived=False
-        )
-
-        logger.debug(f"Auto-archive started. Now: {current_date}")
-
-        if expired_notes.exists():
-            expired_notes.update(is_archived=True)
-
-        return self
 
 
 class NoteManager(models.Manager):

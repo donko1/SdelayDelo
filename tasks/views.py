@@ -46,6 +46,8 @@ from .throttles import (
     IconThrottle,
 )
 
+from .services import NoteArchiver 
+
 from .paginators import NotePagination
 
 User = get_user_model()
@@ -628,6 +630,7 @@ class NoteViewSet(viewsets.ModelViewSet):
         Returns a queryset of notes that belong to the current user.
         """
         user = self.request.user
+        NoteArchiver.archive_user_notes(user)
         logger.debug(f"Fetching notes for user {user.username}")
         
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
@@ -702,6 +705,7 @@ class NoteViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="unarchived")
     def shows_unarchived(self, request):
+        NoteArchiver.archive_user_notes(request.user)
         return Response(
             {"detail": "This method is only in v3+ versions"},
             status=status.HTTP_400_BAD_REQUEST,
@@ -742,6 +746,7 @@ class NoteViewSetV3(NoteViewSetV2):
         Shows only archived notes
         """
         user = request.user
+        NoteArchiver.archive_user_notes(request.user)
         logger.debug(f"Fetching archived notes for user {user.username}")
 
         queryset = Note.objects.archived(user=user)
@@ -800,6 +805,7 @@ class NoteViewSetV3(NoteViewSetV2):
                 f"Error while clear archive for user {user.username}: {_ex}"
             )
             return Response({"detail":"Error on server side"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
     @action(detail=False, methods=["get"], url_path="by_date")
     def by_date(self, request):
