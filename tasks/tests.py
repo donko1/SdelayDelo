@@ -371,13 +371,6 @@ class NoteModelTest(TestCase):
         """
         Test that the 'unarchived' method returns only non-archived notes.
         """
-        expired_note = Note.objects.create(
-            user=self.user,
-            title="Expired",
-            description="Old note",
-            date_of_note=timezone.now().date() - datetime.timedelta(days=5),
-            is_archived=False,
-        )
 
         note1 = Note.objects.create(
             user=self.user,
@@ -405,21 +398,13 @@ class NoteModelTest(TestCase):
             self.assertFalse(note.is_archived)
         self.assertIn(note1, unarchived_notes)
         self.assertIn(note3, unarchived_notes)
-        self.assertNotIn(expired_note, unarchived_notes)
         self.assertNotIn(note2, unarchived_notes)
 
     def test_archived_notes(self):
         """
         Test that the 'archived' method returns only archived notes.
         """
-        past_date = timezone.now().date() - datetime.timedelta(days=2)
-        auto_note = Note.objects.create(
-            user=self.user,
-            title="Auto Archive",
-            description="Old note.",
-            date_of_note=past_date,
-            is_archived=False,
-        )
+        
         note1 = Note.objects.create(
             user=self.user,
             title="Note 1",
@@ -439,11 +424,10 @@ class NoteModelTest(TestCase):
             is_archived=False,
         )
         archived_notes = Note.objects.archived()
-        self.assertEqual(archived_notes.count(), 2)
+        self.assertEqual(archived_notes.count(), 1)
         for note in archived_notes:
             self.assertTrue(note.is_archived)
         self.assertIn(note2, archived_notes)
-        self.assertIn(auto_note, archived_notes)
 
         self.assertNotIn(note1, archived_notes)
         self.assertNotIn(note3, archived_notes)
@@ -548,22 +532,6 @@ class NoteModelTest(TestCase):
         self.assertEqual(
             list(Note.objects.all()), list(Note.objects.order_by("-is_pinned"))
         )
-
-    def test_note_auto_archived_by_date(self):
-        """Test that a note with past date_of_note is auto-archived."""
-        past_date = timezone.now().date() - datetime.timedelta(days=1)
-        note = Note.objects.create(
-            user=self.user,
-            title="Expired Note",
-            description="Should be archived automatically.",
-            date_of_note=past_date,
-            is_archived=False,
-        )
-
-        archived_notes = Note.objects.archived()
-        self.assertIn(note, archived_notes)
-        note.refresh_from_db()
-        self.assertTrue(note.is_archived)
 
     def test_note_not_auto_archived_if_date_in_future(self):
         """Test that a note with future date_of_note is not auto-archived."""
@@ -2208,6 +2176,52 @@ class NoteTestViewSetV2(APITestCase):
                 description=f"Description {i}",
             )
 
+    def test_v2_auto_archive(self):
+        """Tests that auto_archive works"""
+        url = reverse("note_v2-list")
+        yesterday_utc = timezone.now() - timedelta(days=1)
+        note = Note.objects.create(
+            user=self.user,
+            title=f"Note archived",
+            description="lorem",
+            date_of_note=yesterday_utc)
+
+
+        self.assertFalse(note.is_archived)
+        self.client.get(url, headers=self.header_user)
+        note.refresh_from_db()
+        self.assertTrue(note.is_archived)
+
+    def test_v2_auto_archive_with_tz(self):
+        """Tests that auto_archive works with custom UTC"""
+        moscow_tz = pytz.timezone("Europe/Moscow")
+        url = reverse("note_v2-list")
+
+        yesterday_moscow = timezone.now().astimezone(moscow_tz) - timedelta(days=1)
+
+        user_new_tz = User.objects.create(
+            username="testuser_moscow",
+            email="example@example.com",
+            password="qwerty123",
+            timezone="Europe/Moscow"
+        )
+
+        access_token_user = Token.objects.create(user=user_new_tz).key
+        headers_tz = {"Authorization": f"Token {access_token_user}"}
+
+        note = Note.objects.create(
+            user=user_new_tz,
+            title=f"Note archived",
+            description="lorem",
+            date_of_note=yesterday_moscow
+        )
+
+        self.assertFalse(note.is_archived)
+        self.client.get(url, headers=headers_tz)
+        note.refresh_from_db()
+        self.assertTrue(note.is_archived)
+
+
     def test_v2_pagination(self):
         """Verify v2 list endpoint returns paginated results (25 per page)."""
         url = reverse("note_v2-list")
@@ -2224,6 +2238,7 @@ class NoteTestViewSetV2(APITestCase):
         self.assertEqual(response.data["count"], 30)
         # Check next page URL
         self.assertIsNotNone(response.data["next"])
+
 
     def test_v1_no_pagination(self):
         """Verify v1 list endpoint doesn't have pagination."""
