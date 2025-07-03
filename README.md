@@ -2,6 +2,15 @@
 
 SdelayDelo is a Django-based application that allows you to easily create, manage, and organize your notes. It features tagging, different API versions.
 
+## ✅ Status  
+**Ready to use** – Fully functional API with:  
+- User authentication  
+- Notes CRUD operations  
+- Tags management  
+- Archive system  
+- etc
+
+
 ## Features
 
 - **Note Creation and Management:** Create, edit, and delete your notes with ease.
