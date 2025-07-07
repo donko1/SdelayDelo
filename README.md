@@ -19,6 +19,8 @@ SdelayDelo is a Django-based application that allows you to easily create, manag
 - **User Authentication:** Secure user registration, login, and password management.
 - **Archiving:** Archive notes to keep your main list clean.
 - **Tag Icons:** Associate custom icons with your tags for visual organization.
+- **Automatic Demo Accounts Cleanup**: Demo accounts older than 2 hours are automatically deleted
+- **Background Tasks**: Powered by Celery and Redis for reliable task processing
 
 ## API Endpoints
 
@@ -35,6 +37,7 @@ The following API endpoints are available:
 - **`POST /api/reset_password`**: Resets the user's password.
 - **`POST /api/login`**: Logs in an existing user.
 - **`PATCH /api/change-userinfo/`**: Updates user information.
+- **`POST /api/demo/`**: Creating demo-account for demonstration.
 
 ### Notes Endpoints
 
@@ -170,6 +173,27 @@ Follow these steps to install and run SdelayDelo locally.
    The server will start at http://127.0.0.1:8000/.
 
 10. Fill the email fields in local_settings.py to make them working. (optionally)
+
+## Celery Setup (For Demo Accounts Cleanup). You must do it parallel while server is working
+
+### For Linux:
+```bash
+# Start Celery worker + beat (in separate terminals). You must do it after all install
+# Terminal 1 - Worker
+celery -A SdelayDelo worker --loglevel=info
+
+# Terminal 2 - Scheduler
+celery -A SdelayDelo beat --loglevel=info
+
+# Or combined for development:
+celery -A SdelayDelo worker --beat --loglevel=info
+```
+### For Windows:
+```bash
+# Start Celery (PowerShell)
+Start-Process celery -ArgumentList "-A SdelayDelo worker --loglevel=info -P solo"
+Start-Process celery -ArgumentList "-A SdelayDelo beat --loglevel=info"
+```
 
 ## Usage
 
