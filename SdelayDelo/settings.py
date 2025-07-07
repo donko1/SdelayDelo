@@ -46,7 +46,6 @@ INSTALLED_APPS = [
     'corsheaders',
     "rest_framework.authtoken",
     "drf_spectacular",
-    'django_apscheduler',
     "tasks",
 ]
 

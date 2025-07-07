@@ -1,16 +1,14 @@
-from django_apscheduler import util
+from celery import shared_task
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 import logging
 
 logger = logging.getLogger(__name__)
 
-
-@util.close_old_connections
-def cleanup_demo_users():
+@shared_task(bind=True, name="tasks.cleanup_demo_users")  
+def cleanup_demo_users(self):
     """delete all demo-users older than 2 hours"""
     User = get_user_model()
-
     cutoff = timezone.now() - timezone.timedelta(hours=2)
     
     deleted_count, _ = User.objects.filter(
@@ -18,4 +16,5 @@ def cleanup_demo_users():
         created_at__lt=cutoff
     ).delete()
     
-    logger.debug(f"Deleted {deleted_count} demo accounts")
+    logger.info(f"Deleted {deleted_count} demo accounts")
+    return deleted_count

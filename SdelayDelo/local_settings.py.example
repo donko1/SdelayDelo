@@ -1,5 +1,6 @@
 from .settings import BASE_DIR
 from os import path
+from celery.schedules import crontab
 
 with open(path.abspath("./SdelayDelo/secret_key.txt"), "r", encoding="utf-8") as f:
     SECRET_KEY = f.read().strip()
@@ -35,5 +36,17 @@ USE_TZ = True
 
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+
+CELERY_TIMEZONE = 'UTC'
+CELERY_BEAT_SCHEDULE = {
+    'cleanup-every-2-hours': {
+        'task': 'tasks.cleanup_demo_users', 
+        'schedule': 7200.0, 
+    },
+}
+
 
 NGINX = False
