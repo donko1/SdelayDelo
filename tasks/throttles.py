@@ -44,6 +44,18 @@ class NoteAndTagThrottleWrite(UserRateThrottle):
         return True  # Allow other requests
 
 
+class CreateDemoUserThrottle(SimpleRateThrottle):
+    """
+    Throttle for creating demo-users
+    """
+    scope = "create-demo"
+
+    def get_cache_key(self, request, view):
+        ident = self.get_ident(request) + request.META.get('HTTP_USER_AGENT', '')[:20]
+        user_ident = request.user.pk if request.user.is_authenticated else None
+        return f"throttle_{self.scope}_{user_ident or ident}"
+
+
 class IconThrottle(SimpleRateThrottle):
     scope = "icon"
 

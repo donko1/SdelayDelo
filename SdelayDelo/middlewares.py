@@ -137,3 +137,21 @@ class ErrorTrackingMiddleware:
     def _get_client_ip(self, request):
         """Extract client IP from request."""
         return request.META.get("REMOTE_ADDR", "0.0.0.0")
+
+class DemoTokenMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+        
+    def __call__(self, request):
+        if request.user.is_authenticated and request.user.is_demo:
+            token = request.auth
+            if token and token.is_expired:
+                logger.info(
+                    f"Expired demo token for user {request.user.username}"
+                )
+                return JsonResponse(
+                    {"detail": "Demo session expired"}, 
+                    status=401
+                )
+        return self.get_response(request)
+

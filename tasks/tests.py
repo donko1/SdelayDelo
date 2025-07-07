@@ -24,10 +24,11 @@ import os
 import pytz
 
 from PIL import Image
+from freezegun import freeze_time
 
 from SdelayDelo.settings import TESTING
 
-from .models import Note, Tag, TokenToEmail
+from .models import Note, Tag, TokenToEmail, ExpiringToken
 from .serializers import TagSerializer, NoteSerializer, IconUploadSerializer
 from .validators import is_hex_color
 from .views import who_am_i
@@ -250,6 +251,102 @@ class CustomUserModelTests(TestCase):
 
         self.assertNotEqual(time1.tzinfo, time2.tzinfo)
         self.assertNotEqual(time1.hour, time2.hour)
+
+    def test_created_at_auto_set(self):
+        """
+        Verifies that created_at is automatically set on creation.
+        """
+        with freeze_time("2023-01-01 12:00:00", tz_offset=0):
+            user = self.User.objects.create_user(
+                username="autotimeuser", 
+                password="password"
+            )
+            
+        self.assertEqual(
+            user.created_at, 
+            timezone.datetime(2023, 1, 1, 12, 0, tzinfo=pytz.UTC)
+        )
+
+    def test_is_demo_default(self):
+        """
+        Verifies that is_demo defaults to False.
+        """
+        user = self.User.objects.create_user(
+            username="demodefaultuser", 
+            password="password"
+        )
+        self.assertFalse(user.is_demo)
+
+    def test_create_demo_user(self):
+        """
+        Verifies creation of demo user with correct flags.
+        """
+        demo_user = self.User.objects.create_user(
+            username="demouser",
+            password="demopassword",
+            is_demo=True
+        )
+        
+        self.assertTrue(demo_user.is_demo)
+        self.assertIsNotNone(demo_user.created_at)
+        self.assertLessEqual(
+            demo_user.created_at, 
+            timezone.now()
+        )
+
+    def test_demo_account_cleanup(self):
+        """
+        Verifies that old demo accounts are automatically deleted.
+        """
+        with freeze_time(timezone.now() - timedelta(hours=3)):
+            old_demo_user = self.User.objects.create_user(
+                username="olddemo",
+                password="oldpass",
+                is_demo=True
+            )
+            
+        with freeze_time(timezone.now() - timedelta(minutes=30)):
+            new_demo_user = self.User.objects.create_user(
+                username="newdemo",
+                password="newpass",
+                is_demo=True
+            )
+            
+        regular_user = self.User.objects.create_user(
+            username="regular",
+            password="regularpass"
+        )
+
+        from .tasks import cleanup_demo_users  
+        cleanup_demo_users()
+
+        self.assertFalse(self.User.objects.filter(username="olddemo").exists())
+        self.assertTrue(self.User.objects.filter(username="newdemo").exists())
+        self.assertTrue(self.User.objects.filter(username="regular").exists())
+        
+    def test_demo_account_cleanup_threshold(self):
+        """
+        Verifies the exact cutoff time for demo account deletion.
+        """
+        with freeze_time(timezone.now() - timedelta(hours=2, seconds=1)):
+            should_be_deleted = self.User.objects.create_user(
+                username="deleteme",
+                password="pass",
+                is_demo=True
+            )
+            
+        with freeze_time(timezone.now() - timedelta(hours=1, minutes=59)):
+            should_remain = self.User.objects.create_user(
+                username="keepme",
+                password="pass",
+                is_demo=True
+            )
+
+        from .tasks import cleanup_demo_users
+        cleanup_demo_users()
+
+        self.assertFalse(self.User.objects.filter(username="deleteme").exists())
+        self.assertTrue(self.User.objects.filter(username="keepme").exists())
 
 
 class TestHexColorValidation(TestCase):
@@ -548,6 +645,54 @@ class NoteModelTest(TestCase):
         self.assertNotIn(note, archived_notes)
         note.refresh_from_db()
         self.assertFalse(note.is_archived)
+
+
+class ExpiringTokenModelTests(TestCase):
+    def setUp(self):
+        self.username = "testuser"
+        self.user = User.objects.create_user(
+            username="testuser",
+            password="testpass"
+        )
+        self.tolerance = timedelta(minutes=3)  
+
+    def test_token_creation(self):
+        """Test that token expiration is ~2 hours from creation"""
+        creation_time = timezone.now()
+        token = ExpiringToken.objects.create(user=self.user)
+        
+        expected_expiration = creation_time + timedelta(hours=2)
+        
+        self.assertAlmostEqual(
+            token.expires,
+            expected_expiration,
+            delta=self.tolerance,
+            msg=f"Expiration time should be within {self.tolerance} of 2 hours after creation"
+        )
+
+
+    def test_is_expired_property(self):
+        """Test is_expired property"""
+        token = ExpiringToken.objects.create(user=self.user)
+        
+        with freeze_time(token.expires - timedelta(seconds=1)):
+            self.assertFalse(token.is_expired)
+            
+        with freeze_time(token.expires + timedelta(seconds=1)):
+            self.assertTrue(token.is_expired)
+
+    def test_token_deletion_with_user(self):
+        """Test token is deleted when user is deleted"""
+        token = ExpiringToken.objects.create(user=self.user)
+        self.assertEqual(ExpiringToken.objects.count(), 1)
+        
+        self.user.delete()
+        self.assertEqual(ExpiringToken.objects.count(), 0)
+
+    def test_token_str_representation(self):
+        """Test string representation of token"""
+        token = ExpiringToken.objects.create(user=self.user)
+        self.assertEqual(str(token), f"Token for {self.username}")
 
 
 
@@ -2750,3 +2895,32 @@ class GetEmailByUsername(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["email"], self.user_email)
 
+
+class CreateDemoUserViewTests(APITestCase):
+    def setUp(self):
+        self.url = reverse('create_demo_user')
+
+    def test_create_demo_user_success(self):
+        """Test successful demo user creation"""
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, 201)
+        
+        data = response.json()
+        self.assertTrue(data['is_demo'])
+        self.assertEqual(data['expires_in'], 7200)
+        
+        token = data['token']
+        token_obj = Token.objects.get(key=token)
+        user = token_obj.user
+        self.assertTrue(user.is_demo)
+        
+    def test_error_handling(self):
+        """Test error handling when user creation fails"""
+        original_method = User.objects.create_demo_user
+        User.objects.create_demo_user = lambda: 1/0 
+        
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()['error'], "Internal server error")
+        
+        User.objects.create_demo_user = original_method

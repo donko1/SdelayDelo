@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'corsheaders',
     "rest_framework.authtoken",
     "drf_spectacular",
+    'django_apscheduler',
     "tasks",
 ]
 
@@ -59,6 +60,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "SdelayDelo.middlewares.ErrorTrackingMiddleware",
     "SdelayDelo.middlewares.MediaServerMiddleware",
+    "SdelayDelo.middlewares.DemoTokenMiddleware",
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
 
@@ -237,6 +239,7 @@ REST_FRAMEWORK = {
         "note_and_tag_read": "300/m",
         "note_and_tag_write": "30/m",
         "icon": "5/min",
+        "create-demo":"10/day"
     },
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
     "DEFAULT_VERSION": "v3",
@@ -253,6 +256,8 @@ if TESTING or DEBUG:
         "icon": None,
         "note_and_tag_read": None,
         "note_and_tag_write": None,
+        "create-demo":None
+
     }
 
 

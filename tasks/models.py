@@ -1,8 +1,9 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils.crypto import get_random_string
 from django.core.mail import send_mail
+from rest_framework.authtoken.models import Token
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -70,7 +71,30 @@ class NoteManager(models.Manager):
         return super().get_queryset()
 
 
+class ExpiringToken(Token):
+    expires = models.DateTimeField(default=timezone.now() + timedelta(hours=2))
+
+    def __str__(self):
+        return f"Token for {self.user.username}"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires
+
+
+class CustomUserManager(UserManager):
+    def create_demo_user(self):
+        email = f"demo_{uuid.uuid4().hex[:8]}@example.com"
+        return self.create_user(
+            username=f"demo_{uuid.uuid4().hex[:4]}",
+            email=email,
+            password=uuid.uuid4().hex,
+            is_demo=True
+        )
+
 class custom_user(AbstractUser):
+
+    objects = CustomUserManager()
 
     LANGUAGE_CHOICES = (
         ("en", "English"),
@@ -103,6 +127,16 @@ class custom_user(AbstractUser):
 
     timezone = models.CharField(
         max_length=50, default="UTC", validators=[validate_timezone]
+    )
+
+    is_demo = models.BooleanField(
+        default=False,
+        verbose_name="Demo account"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,  
+        verbose_name="Created at"
     )
 
     def get_current_time(self):

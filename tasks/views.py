@@ -20,6 +20,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.utils import timezone as django_timezone
+from django.utils.timezone import timedelta
 from django.conf import settings
 from django.db.models import Q 
 
@@ -31,7 +32,7 @@ from datetime import date
 from datetime import datetime 
 from dateutil.parser import isoparse
 
-from .models import TokenToEmail, Note, Tag
+from .models import TokenToEmail, Note, Tag, ExpiringToken
 from .serializers import (
     RegisterSerializer,
     NoteSerializer,
@@ -44,6 +45,7 @@ from .throttles import (
     NoteAndTagThrottleRead,
     NoteAndTagThrottleWrite,
     IconThrottle,
+    CreateDemoUserThrottle
 )
 
 from .services import NoteArchiver 
@@ -435,7 +437,7 @@ def login(request):
 
             logger.info(f"User {user.username} logged in successfully with token")
             return Response(
-                {"access_token": access_token.key}, status=status.HTTP_200_OK
+                {"access_token": access_token.key, "is_demo_user":False}, status=status.HTTP_200_OK
             )
         else:
             logger.error(f"Token is not correct for user {user.username}")
@@ -456,7 +458,7 @@ def login(request):
         logger.info(f"User {user.username} logged in successfully")
 
         return Response(
-            {"access_token": access_token.key},
+            {"access_token": access_token.key, "is_demo_user":False},
             status=200,
         )
 
@@ -607,6 +609,47 @@ if settings.DEBUG:
         access_token_user = Token.objects.create(user=user).key
 
         return Response({"detail":"Access token created", "token":access_token_user}, status=status.HTTP_200_OK)
+
+@api_view(["POST"])
+@throttle_classes([CreateDemoUserThrottle])
+def create_demo_user(request):
+    """
+    Create demo user with temporary access
+    """
+    try:
+        user = User.objects.create_demo_user()
+
+        tag1 = Tag.objects.create(user=user, title="Tag1")
+        tag2 = Tag.objects.create(user=user, title="Tag2")
+
+        note1 = Note.objects.create(user=user, title="Cook", description="Cook dinner")
+        note1.tags.add(tag1)
+
+        note2 = Note.objects.create(user=user, title="Cook(tommorow)", description="Cook tomorrow also!", date_of_note=django_timezone.now() + timedelta(days=1))
+        note2.tags.add(tag2)
+
+        note3 = Note.objects.create(user=user, title="Archive Note", description="Oh.. Thanks for removing from archive!", is_archived=True)
+        note3.tags.add(tag1, tag2)
+                
+        token = ExpiringToken.objects.create(user=user)
+        
+        logger.info(f"Demo user created: {user.username}")
+        
+        return Response({
+            "detail": "Demo access granted",
+            "token": token.key,
+            "is_demo": True,
+            "expires_in": 7200  
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Demo user creation failed: {str(e)}", exc_info=True)
+        return Response({
+            "detail": "Could not create demo account",
+            "error": "Internal server error"
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 class NoteViewSet(viewsets.ModelViewSet):
     """

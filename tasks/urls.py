@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/change-userinfo/", views.change_userinfo, name="change-userinfo"),
     path("api/logout", views.logout, name="logout"),
     path("api/get_email_by_username", views.get_email_by_username, name="get_email_by_username"),
+    path("api/demo", views.create_demo_user, name="create_demo_user"),
     path("api/", include(router.urls)),
 ]
 
