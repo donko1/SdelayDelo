@@ -617,37 +617,84 @@ def create_demo_user(request):
     Create demo user with temporary access
     """
     try:
-        user = User.objects.create_demo_user()
 
         lang = request.data.get("language")
+        timezone = request.data.get("timezone")
+
+        user = User.objects.create_demo_user(timezone=timezone)
+
         choose_text_by_lang = lambda ru_text, en_text: ru_text if lang == "ru" else en_text 
 
-        tag1 = Tag.objects.create(user=user, title=choose_text_by_lang("Тэг1", "Tag1"))
-        tag2 = Tag.objects.create(user=user, title=choose_text_by_lang("Тэг2", "Tag2"))
+        tag_important = Tag.objects.create(user=user, title=choose_text_by_lang("Важное", "Important"))
+        tag_personal = Tag.objects.create(user=user, title=choose_text_by_lang("Личное", "Personal"))
+        tag_work = Tag.objects.create(user=user, title=choose_text_by_lang("Работа", "Work"))
+        tag_fun = Tag.objects.create(user=user, title=choose_text_by_lang("Развлечения", "Fun"))
 
-        note1 = Note.objects.create(
-            user=user, 
-            title=choose_text_by_lang("Готовка", "Cook"), 
-            description=choose_text_by_lang("Приготовить ужин", "Cook dinner")
+        user_tz = pytz.timezone(timezone) 
+
+        note_free = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("Идеи для отпуска", "Vacation Ideas"),
+            description=choose_text_by_lang("Плавать с дельфинами\nПопробовать сёрфинг\nНайти скрытый пляж", "Swim with dolphins\nTry surfing\nFind hidden beach")
         )
-        note1.tags.add(tag1)
+        note_free.tags.add(tag_fun, tag_personal)
 
-        note2 = Note.objects.create(
-            user=user, 
-            title=choose_text_by_lang("Готовка (завтра)", "Cook(tommorow)"), 
-            description=choose_text_by_lang("Приготовить также завтра!", "Cook tomorrow also!"), 
-            date_of_note=django_timezone.now() + timedelta(days=1)
+        note_yesterday = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("Вчерашний тренинг", "Yesterday Workshop"),
+            description=choose_text_by_lang("Забрать сертификат у организаторов", "Pick up certificate from organizers"),
+            date_of_note=django_timezone.now().astimezone(user_tz).date() - timedelta(days=1)
         )
-        note2.tags.add(tag2)
+        note_yesterday.tags.add(tag_work)
 
-        note3 = Note.objects.create(
-            user=user, 
-            title=choose_text_by_lang("Архивная заметка", "Archive Note"), 
-            description=choose_text_by_lang("О.. Спасибо за удаление из архива!", "Oh.. Thanks for removing from archive!"), 
+        note_last_week = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("Встреча 7 дней назад", "Meeting Last Week"),
+            description=choose_text_by_lang("Проверить выполненные договорённости", "Check completed agreements"),
+            date_of_note=django_timezone.now().astimezone(user_tz).date() - timedelta(days=7)
+        )
+        note_last_week.tags.add(tag_work, tag_important)
+
+        note_last_month = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("Оплата за прошлый месяц", "Last Month Payment"),
+            description=choose_text_by_lang("Подтвердить квитанции у бухгалтерии", "Confirm receipts with accounting"),
+            date_of_note=django_timezone.now().astimezone(user_tz).date() - timedelta(days=30)
+        )
+        note_last_month.tags.add(tag_work, tag_important)
+
+        note_tomorrow = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("Забрать посылку", "Pick Up Parcel"),
+            description=choose_text_by_lang("Код получения: 3A5B, пункт выдачи до 20:00", "Pickup code: 3A5B, open until 8PM"),
+            date_of_note=django_timezone.now().astimezone(user_tz).date() + timedelta(days=1)
+        )
+        note_tomorrow.tags.add(tag_personal)
+
+        note_next_week = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("День рождения друга", "Friend's Birthday"),
+            description=choose_text_by_lang("Купить книгу про космос и торт 'Млечный путь'", "Buy space book and 'Milky Way' cake"),
+            date_of_note=django_timezone.now().astimezone(user_tz).date() + timedelta(days=5)
+        )
+        note_next_week.tags.add(tag_personal, tag_fun)
+
+        note_secret = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("Секретный рецепт", "Secret Recipe"),
+            description=choose_text_by_lang("Ингредиенты:\n- 300г тайны\n- 100г магии\n- щепотка безумия", "Ingredients:\n- 300g mystery\n- 100g magic\n- pinch of madness"),
             is_archived=True
         )
+        note_secret.tags.add(tag_fun, tag_personal)
 
-        note3.tags.add(tag1, tag2)
+        note_today = Note.objects.create(
+            user=user,
+            title=choose_text_by_lang("Текущие задачи", "Today Tasks"),
+            description=choose_text_by_lang("1. Ответить на письма\n2. Подготовить отчет\n3. Купить кофе", "1. Reply to emails\n2. Prepare report\n3. Buy coffee"),
+            date_of_note=django_timezone.now().astimezone(user_tz).date()
+        )
+        note_today.tags.add(tag_work, tag_important)
+
                 
         token = ExpiringToken.objects.create(user=user)
         

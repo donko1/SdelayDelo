@@ -83,13 +83,14 @@ class ExpiringToken(Token):
 
 
 class CustomUserManager(UserManager):
-    def create_demo_user(self):
+    def create_demo_user(self, timezone=None):
         email = f"demo_{uuid.uuid4().hex[:8]}@example.com"
         return self.create_user(
             username=f"demo_{uuid.uuid4().hex[:4]}",
             email=email,
             password=uuid.uuid4().hex,
-            is_demo=True
+            is_demo=True,
+            timezone=timezone
         )
 
 class custom_user(AbstractUser):
