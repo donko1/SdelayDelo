@@ -619,16 +619,34 @@ def create_demo_user(request):
     try:
         user = User.objects.create_demo_user()
 
-        tag1 = Tag.objects.create(user=user, title="Tag1")
-        tag2 = Tag.objects.create(user=user, title="Tag2")
+        lang = request.data.get("language")
+        choose_text_by_lang = lambda ru_text, en_text: ru_text if lang == "ru" else en_text 
 
-        note1 = Note.objects.create(user=user, title="Cook", description="Cook dinner")
+        tag1 = Tag.objects.create(user=user, title=choose_text_by_lang("Тэг1", "Tag1"))
+        tag2 = Tag.objects.create(user=user, title=choose_text_by_lang("Тэг2", "Tag2"))
+
+        note1 = Note.objects.create(
+            user=user, 
+            title=choose_text_by_lang("Готовка", "Cook"), 
+            description=choose_text_by_lang("Приготовить ужин", "Cook dinner")
+        )
         note1.tags.add(tag1)
 
-        note2 = Note.objects.create(user=user, title="Cook(tommorow)", description="Cook tomorrow also!", date_of_note=django_timezone.now() + timedelta(days=1))
+        note2 = Note.objects.create(
+            user=user, 
+            title=choose_text_by_lang("Готовка (завтра)", "Cook(tommorow)"), 
+            description=choose_text_by_lang("Приготовить также завтра!", "Cook tomorrow also!"), 
+            date_of_note=django_timezone.now() + timedelta(days=1)
+        )
         note2.tags.add(tag2)
 
-        note3 = Note.objects.create(user=user, title="Archive Note", description="Oh.. Thanks for removing from archive!", is_archived=True)
+        note3 = Note.objects.create(
+            user=user, 
+            title=choose_text_by_lang("Архивная заметка", "Archive Note"), 
+            description=choose_text_by_lang("О.. Спасибо за удаление из архива!", "Oh.. Thanks for removing from archive!"), 
+            is_archived=True
+        )
+
         note3.tags.add(tag1, tag2)
                 
         token = ExpiringToken.objects.create(user=user)
@@ -639,7 +657,8 @@ def create_demo_user(request):
             "detail": "Demo access granted",
             "token": token.key,
             "is_demo": True,
-            "expires_in": 7200  
+            "expires_in": 7200,
+            "language":lang
         }, status=status.HTTP_201_CREATED)
         
     except Exception as e:
