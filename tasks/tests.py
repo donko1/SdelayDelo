@@ -1524,9 +1524,7 @@ class WhoAmIViewTest(APITestCase):
         force_authenticate(request, user=self.user_with_token, token=self.access_token)
         response = who_am_i(request)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn("email", str(response.data))
         self.assertNotIn("DEBUG", str(response.data))
-        self.assertNotIn("fa_2", str(response.data))
         self.assertIn("PRODUCTION", str(response.data))
         self.assertIn("theme", str(response.data))
         self.assertEqual(response.data["user"]["theme"], "light")
@@ -2411,6 +2409,7 @@ class NoteTestViewSetV3(APITestCase):
             user=self.user,
             title=f"Note 1",
             description=f"Description 1",
+            date_of_note=datetime.datetime.now(),
         )
 
         self.note_2 = Note.objects.create(
@@ -2550,6 +2549,7 @@ class NoteTestViewSetV3(APITestCase):
         self.note_1.save()
 
         url = reverse("note_v3-list") + "my_day/"
+
         response = self.client.get(url, headers=self.header_user)
 
         self.assertEqual(response.status_code, 200)
@@ -2563,6 +2563,106 @@ class NoteTestViewSetV3(APITestCase):
         self.assertNotIn("Note 2", titles)
         self.assertNotIn("Note 4", titles)
         self.assertNotIn("Note 5", titles)
+
+    def test_hide_note_success(self):
+        """Test successful note hiding"""
+        url = reverse("note_v3-list") + f"{self.note_1.id}/hide/"
+        response = self.client.delete(url, headers=self.header_user)
+        
+        self.assertEqual(response.status_code, 200)
+        self.note_1.refresh_from_db()
+        self.assertTrue(self.note_1.is_deliting)
+        self.assertEqual(response.data['detail'], "Note hidden. Use undo to restore.")
+        self.assertEqual(int(response.data['note_id']), self.note_1.id)
+
+    def test_undo_hide_success(self):
+        """Test successful note restoration"""
+        self.note_1.is_deliting = True
+        self.note_1.save()
+        
+        url = reverse("note_v3-list") + f"{self.note_1.id}/undo/"
+        response = self.client.post(url, headers=self.header_user)
+        
+        self.assertEqual(response.status_code, 200)
+        self.note_1.refresh_from_db()
+        self.assertFalse(self.note_1.is_deliting)
+        self.assertEqual(response.data['detail'], "Note restored successfully")
+        self.assertEqual(int(response.data['note_id']), self.note_1.id)
+
+    def test_hide_note_permission_denied(self):
+        """Test hiding note by another user"""
+        another_user = User.objects.create(username="another", password="pass123")
+        another_token = Token.objects.create(user=another_user).key
+        another_header = {"Authorization": f"Token {another_token}"}
+        
+        url = reverse("note_v3-list") + f"{self.note_1.id}/hide/"
+        response = self.client.delete(url, headers=another_header)
+        
+        self.assertEqual(response.status_code, 404)
+        self.note_1.refresh_from_db()
+        self.assertFalse(self.note_1.is_deliting)
+
+    def test_undo_hide_permission_denied(self):
+        """Test restoring note by another user"""
+        self.note_1.is_deliting = True
+        self.note_1.save()
+        
+        another_user = User.objects.create(username="another", password="pass123")
+        another_token = Token.objects.create(user=another_user).key
+        another_header = {"Authorization": f"Token {another_token}"}
+        
+        url = reverse("note_v3-list") + f"{self.note_1.id}/undo/"
+        response = self.client.post(url, headers=another_header)
+        
+        self.assertEqual(response.status_code, 403)
+        self.note_1.refresh_from_db()
+        self.assertTrue(self.note_1.is_deliting)
+
+    def test_undo_not_hidden_note(self):
+        """Test restoring note that isn't hidden"""
+        url = reverse("note_v3-list") + f"{self.note_1.id}/undo/"
+        response = self.client.post(url, headers=self.header_user)
+        
+        self.assertEqual(response.status_code, 200)
+        self.note_1.refresh_from_db()
+        self.assertFalse(self.note_1.is_deliting)
+
+    def test_hidden_note_not_in_list(self):
+        """Test that hidden notes are excluded from lists"""
+        self.note_1.is_deliting = True
+        self.note_1.save()
+        
+        list_url = reverse("note_v3-list")
+        response = self.client.get(list_url, headers=self.header_user)
+        titles = [note['title'] for note in response.data['results']]
+        self.assertNotIn(self.note_1.title, titles)
+
+        my_day_url = reverse("note_v3-list") + "my_day/"
+        response = self.client.get(my_day_url, headers=self.header_user)
+        titles = [note['title'] for note in response.data['results']]
+        self.assertNotIn(self.note_1.title, titles)
+        
+        date_str = self.note_1.date_of_note.strftime('%Y-%m-%d')
+        by_date_url = reverse("note_v3-list") + "by_date/?date=" + date_str
+        response = self.client.get(by_date_url, headers=self.header_user)
+        if isinstance(response.data, list):
+            titles = [note['title'] for note in response.data]
+        else:  
+            titles = []
+        self.assertNotIn(self.note_1.title, titles)
+
+    def test_restored_note_appears_in_lists(self):
+        """Test that restored note appears in all relevant lists"""
+        self.note_1.is_deliting = True
+        self.note_1.save()
+        
+        undo_url = reverse("note_v3-list") + f"{self.note_1.id}/undo/"
+        self.client.post(undo_url, headers=self.header_user)
+        
+        list_url = reverse("note_v3-list")
+        response = self.client.get(list_url, headers=self.header_user)
+        titles = [note['title'] for note in response.data['results']]
+        self.assertIn(self.note_1.title, titles)
 
 
 
@@ -2902,7 +3002,7 @@ class CreateDemoUserViewTests(APITestCase):
 
     def test_create_demo_user_success(self):
         """Test successful demo user creation"""
-        response = self.client.post(self.url)
+        response = self.client.post(self.url, {"language":"en", "timezone":"UTC"})
         self.assertEqual(response.status_code, 201)
         
         data = response.json()

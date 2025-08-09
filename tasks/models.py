@@ -50,13 +50,13 @@ class NoteManager(models.Manager):
     """Manager for note to add unarchived and archived method"""
 
     def get_queryset(self):
-        return UnarchivedNoteQuerySet(self.model, using=self._db)
+        return UnarchivedNoteQuerySet(self.model, using=self._db).filter(is_deliting=False)
 
     def unarchived(self):
-        return self.get_queryset().unarchived()
+        return self.get_queryset().unarchived().filter(is_deliting=False)
 
     def archived(self, user=None):
-        return self.get_queryset().archived(user=user)
+        return self.get_queryset().archived(user=user).filter(is_deliting=False)
 
     def clear_archive(self, user):
         archived_notes = self.archived(user=user)
@@ -195,6 +195,7 @@ class Note(models.Model):
     - date_create: The date and time when the note was created.
     - date_changed: The date and time when the note was last modified.
     - tags: Tags associated with the note (many-to-many relationship).
+    - is_deliting: is Note should be hidden and next be deleted
     - is_archived: status of archived or not the note. Default value is False
     """
 
@@ -211,6 +212,7 @@ class Note(models.Model):
     tags = models.ManyToManyField(
         Tag, related_name="notes", blank=True, verbose_name="Тэги"
     )
+    is_deliting = models.BooleanField(default=False, verbose_name="Статус удаления")
     is_pinned = models.BooleanField(default=False, verbose_name="Статус закреплённости")
 
     is_archived = models.BooleanField(

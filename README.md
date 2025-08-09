@@ -55,6 +55,8 @@ The following API endpoints are available:
 - **`GET /api/note/my_day/`**: List notes where date_of_note is today (Default Version).
 - **`DELETE /api/note/clear_archive/`**: Delete all notes in archive (Default Version).
 - **`GET /api/note/by_date/`**: List of notes by date (Default Version).
+- **`DELETE /api/v3/note/{id}/hide/`**: hiding note for UI
+- **`POST /api/v3/note/{id}/undo/`**: restoring note for UI
 
 ### Tags Endpoints
 

@@ -552,9 +552,10 @@ def who_am_i(request):
                     "theme": user.theme,
                     "language": user.language,
                     "timezone": user.timezone,
-                    "mode": "PRODUCTION",
                     "username": user.username,
-
+                    "email": user.email,
+                    "fa_2": user.fa_2,
+                    "mode": "PRODUCTION",
                 }
             }
         )
@@ -940,6 +941,55 @@ class NoteViewSetV3(NoteViewSetV2):
                 f"Error while clear archive for user {user.username}: {_ex}"
             )
             return Response({"detail":"Error on server side"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    
+    @action(detail=True, methods=["delete"], url_path="hide")
+    def hide_note(self, request, pk=None):
+        """
+        Soft delete (hide) a note with undo capability
+        """
+        note = self.get_object()
+        logger.debug(f"Hiding note {pk} for user {request.user.username}")
+
+        if note.user != request.user:
+            return Response(
+                {"detail": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        note.is_deliting = True
+        note.save(update_fields=['is_deliting'])
+        
+        logger.info(f"Note {pk} hidden by user {request.user.username}")
+        return Response(
+            {"detail": "Note hidden. Use undo to restore.", "note_id": pk},
+            status=status.HTTP_200_OK
+        )
+
+
+    @action(detail=True, methods=["post"], url_path="undo")
+    def undo_hide(self, request, pk=None):
+        """
+        Restore a hidden note
+        """
+        note = Note.objects.get_all().filter(pk=pk)[0]
+        logger.debug(f"Undo hide for note {pk} by user {request.user.username}")
+
+        if note.user != request.user:
+            return Response(
+                {"detail": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        note.is_deliting = False
+        note.save(update_fields=['is_deliting', ])
+        
+        logger.info(f"Note {pk} restored by user {request.user.username}")
+        return Response(
+            {"detail": "Note restored successfully", "note_id": pk},
+            status=status.HTTP_200_OK
+        )
+
 
 class TagViewSet(viewsets.ModelViewSet):
     """
