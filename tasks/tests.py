@@ -1784,29 +1784,7 @@ class NoteTestViewSet(APITestCase):
         response = self.client.delete(url + "1/", headers=self.header_user)
         self.assertEqual(response.status_code, 404)
 
-    def search_test(self):
-        """Tests if currently working searching"""
-        url = reverse("note_default-list")
-        self.client.post(url, headers=self.header_user, data=self.note_1_by_user_json)
-        self.client.post(url, headers=self.header_user, data=self.note_2_by_user_json)
-        self.client.post(url, headers=self.header_user, data=self.note_3_by_user_json)
-        self.client.post(url, headers=self.header_user, data=self.note_4_by_user_json)
-        response = self.client.get(
-            url + "search/?query=Note 1", headers=self.header_user
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 1)
-        self.assertIn("Note 1", str(response.data))
-
-        response = self.client.get(url + "search/?query=Note", headers=self.header_user)
-        self.assertEqual(response.status_code, 200)
-
-        # Because sqlite have a bug with searching by register
-        if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
-            self.assertEqual(len(response.data), 2)
-        else:
-            self.assertEqual(len(response.data), 4)
-
+    # TODO: make srarch by tag
     def search_by_tag_test(self):
         """Tests if searching by tag working currently"""
         url = reverse("note_default-list")
@@ -2664,6 +2642,31 @@ class NoteTestViewSetV3(APITestCase):
         titles = [note['title'] for note in response.data['results']]
         self.assertIn(self.note_1.title, titles)
 
+    def test_search(self):
+        url = reverse("note_v3-list") + "search/"
+
+        response = self.client.get(url, {"query": "Note 1"}, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertIn("Note 1", response.data["results"][0]['title'])
+
+        response = self.client.get(url, {"query": "Note"}, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
+
+        titles = [note['title'] for note in response.data["results"]]
+        self.assertIn("Note 1", titles)
+        self.assertIn("Note 2", titles)
+        self.assertNotIn("Note 3", titles)
+        self.assertNotIn("Note 4", titles)
+        self.assertNotIn("Note 5", titles)
+
+        self.note_1.is_deliting = True
+        self.note_1.save()
+        
+        response = self.client.get(url, {"query": "Note 1"}, headers=self.header_user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)  
 
 
 class IconUploadSerializerTest(APITestCase):

@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils.crypto import get_random_string
@@ -53,18 +54,22 @@ class NoteManager(models.Manager):
         return UnarchivedNoteQuerySet(self.model, using=self._db).filter(is_deliting=False)
 
     def unarchived(self):
-        return self.get_queryset().unarchived().filter(is_deliting=False)
+        return self.get_queryset().unarchived()
 
     def archived(self, user=None):
-        return self.get_queryset().archived(user=user).filter(is_deliting=False)
+        return self.get_queryset().archived(user=user)
+
+    def search(self, user, query):
+        return self.unarchived().filter(
+            Q(user=user) &
+            (Q(title__icontains=query) | Q(description__icontains=query))
+        )
 
     def clear_archive(self, user):
         archived_notes = self.archived(user=user)
-        count = len(archived_notes)
+        count = archived_notes.count()  # Используем count() вместо len()
         logger.debug(f"Deleting {count} for {user.username}")
-
         archived_notes.delete()
-
         return count
 
     def get_all(self):

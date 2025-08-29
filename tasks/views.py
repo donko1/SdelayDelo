@@ -821,7 +821,6 @@ class NoteViewSet(viewsets.ModelViewSet):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-
 class NoteViewSetV2(NoteViewSet):
     """
     ViewSet for the Note model, version 2.
@@ -887,10 +886,10 @@ class NoteViewSetV3(NoteViewSetV2):
             today_in_user_tz = now_utc.date()
 
         queryset = Note.objects.filter(
-        user=user,
-        is_archived=False
-        ).filter(
-            Q(date_of_note=today_in_user_tz) | Q(date_of_note__isnull=True)
+            user=user,
+            is_archived=False
+            ).filter(
+                Q(date_of_note=today_in_user_tz) | Q(date_of_note__isnull=True)
         )
 
         
@@ -989,6 +988,18 @@ class NoteViewSetV3(NoteViewSetV2):
             {"detail": "Note restored successfully", "note_id": pk},
             status=status.HTTP_200_OK
         )
+
+    @action(detail=False, methods=['get'], url_path="search")
+    def search(self, request):
+        query = request.query_params.get('query', '')
+
+        notes = Note.objects.search(request.user, query)
+        logger.debug(f"Fetching notes for user {request.user.username} by \"{query}\"")
+
+        page = self.paginate_queryset(notes)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
 
 
 class TagViewSet(viewsets.ModelViewSet):
