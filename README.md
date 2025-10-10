@@ -123,7 +123,7 @@ Follow these steps to install and run SdelayDelo locally.
    ```bash
    python3 manage.py createsuperuser
    ```
-8. Create local settings and **configure it**(optionally):
+8. Create local settings and **configure it**(optionally. For full correctly working use PostgreSQL):
    ```bash
    cp SdelayDelo/local_settings.py.example SdelayDelo/local_settings.py
    ```
@@ -167,7 +167,7 @@ Follow these steps to install and run SdelayDelo locally.
    ```bash
    python manage.py createsuperuser
    ```
-8. Create local settings (rename `SdelayDelo/local_settings.py.example` to `SdelayDelo/local_settings.py`) and **configure it**(optionally).
+8. Create local settings (rename `SdelayDelo/local_settings.py.example` to `SdelayDelo/local_settings.py`) and **configure it**(optionally. For full correctly working use PostgreSQL).
 9. Run the development server:
    ```bash
    python manage.py runserver
