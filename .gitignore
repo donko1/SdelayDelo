@@ -11,3 +11,4 @@ media/
 !/media/icons/test.png
 nginx_linux.conf
 celerybeat-schedule
+.ruff_cache

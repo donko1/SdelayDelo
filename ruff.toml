@@ -1,0 +1,10 @@
+target-version = "py312"
+line-length = 79
+
+exclude = ["**/tests/*", "**/venv/**", "**/logs/**", "**/files/**", "**/templates/**", "**/migrations/*", "tests.py"]
+
+[lint]
+fixable = ["ALL"]
+
+[format]
+quote-style = "double"
