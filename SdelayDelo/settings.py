@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+# ruff: noqa: F403
+
 from pathlib import Path
 import sys
 import os

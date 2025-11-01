@@ -1,4 +1,3 @@
-from django.utils.timezone import now
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.conf import settings

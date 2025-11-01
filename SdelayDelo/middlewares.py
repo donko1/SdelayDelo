@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.models import AnonymousUser
 
 from rest_framework.authtoken.models import Token
@@ -46,7 +46,7 @@ class MediaServerMiddleware:
         if request.path.startswith("/media/"):
             try:
                 logger.debug(f"Get {self.user} for {response.path}")
-            except:
+            except AttributeError:
                 pass
             path_to_media = request.path.replace("/media/", "")
             if not os.path.exists(f"{settings.MEDIA_ROOT}/{path_to_media}"):

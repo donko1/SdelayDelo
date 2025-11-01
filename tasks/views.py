@@ -11,7 +11,6 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import generics
 
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.contrib.auth import get_user_model
@@ -28,9 +27,7 @@ import pytz
 
 import uuid
 import logging
-from datetime import date
 from datetime import datetime 
-from dateutil.parser import isoparse
 
 from .models import TokenToEmail, Note, Tag, ExpiringToken
 from .serializers import (
@@ -62,6 +59,11 @@ def format_email(email):
     email_1_part = email.split("@")[0]
     email_1_part = email_1_part[0] + "*" * (len(email_1_part) - 2) + email_1_part[-1]
     return email_1_part + "@" + email.split("@")[-1]
+
+def choose_text_by_lang(ru_text, en_text, lang):
+    if lang == "ru":
+        return ru_text
+    return en_text
 
 
 @api_view(["GET"])
@@ -280,7 +282,7 @@ def reset_password(request):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         except TokenToEmail.DoesNotExist:
-            logger.error(f"Invalid registration token for reset_password")
+            logger.error("Invalid registration token for reset_password")
             return Response(
                 {"detail": "Invalid registration token."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -347,15 +349,15 @@ def register_user(request):
             errors = serializer.errors
             logger.error(f"Registration failed for user with token {token}")
             if "{'password': [ErrorDetail(string='Убедитесь, что это значение содержит не менее 8 символов.', code='min_length')]}" in str(errors):
-                logger.error(f"Password less than 8 symbols")
+                logger.error("Password less than 8 symbols")
                 return Response({"detail":"password_8_symbols"}, status=status.HTTP_400_BAD_REQUEST)
             if "This username is already registered" in str(errors):
-                logger.error(f"Username isnt uniq")
+                logger.error("Username isnt uniq")
                 return Response({"detail":"username_isnt_uniq"}, status=status.HTTP_400_BAD_REQUEST)
             logger.error(f"UnknownError: {errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except TokenToEmail.DoesNotExist:
-        logger.error(f"Invalid registration token for register_user")
+        logger.error("Invalid registration token for register_user")
         return Response(
             {"detail": "Invalid registration token."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -624,74 +626,72 @@ def create_demo_user(request):
 
         user = User.objects.create_demo_user(timezone=timezone)
 
-        choose_text_by_lang = lambda ru_text, en_text: ru_text if lang == "ru" else en_text 
-
-        tag_important = Tag.objects.create(user=user, title=choose_text_by_lang("Важное", "Important"))
-        tag_personal = Tag.objects.create(user=user, title=choose_text_by_lang("Личное", "Personal"))
-        tag_work = Tag.objects.create(user=user, title=choose_text_by_lang("Работа", "Work"))
-        tag_fun = Tag.objects.create(user=user, title=choose_text_by_lang("Развлечения", "Fun"))
+        tag_important = Tag.objects.create(user=user, title=choose_text_by_lang("Важное", "Important", lang))
+        tag_personal = Tag.objects.create(user=user, title=choose_text_by_lang("Личное", "Personal", lang))
+        tag_work = Tag.objects.create(user=user, title=choose_text_by_lang("Работа", "Work", lang))
+        tag_fun = Tag.objects.create(user=user, title=choose_text_by_lang("Развлечения", "Fun", lang))
 
         user_tz = pytz.timezone(timezone) 
 
         note_free = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("Идеи для отпуска", "Vacation Ideas"),
-            description=choose_text_by_lang("Плавать с дельфинами\nПопробовать сёрфинг\nНайти скрытый пляж", "Swim with dolphins\nTry surfing\nFind hidden beach")
+            title=choose_text_by_lang("Идеи для отпуска", "Vacation Ideas", lang),
+            description=choose_text_by_lang("Плавать с дельфинами\nПопробовать сёрфинг\nНайти скрытый пляж", "Swim with dolphins\nTry surfing\nFind hidden beach", lang)
         )
         note_free.tags.add(tag_fun, tag_personal)
 
         note_yesterday = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("Вчерашний тренинг", "Yesterday Workshop"),
-            description=choose_text_by_lang("Забрать сертификат у организаторов", "Pick up certificate from organizers"),
+            title=choose_text_by_lang("Вчерашний тренинг", "Yesterday Workshop", lang),
+            description=choose_text_by_lang("Забрать сертификат у организаторов", "Pick up certificate from organizers", lang),
             date_of_note=django_timezone.now().astimezone(user_tz).date() - timedelta(days=1)
         )
         note_yesterday.tags.add(tag_work)
 
         note_last_week = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("Встреча 7 дней назад", "Meeting Last Week"),
-            description=choose_text_by_lang("Проверить выполненные договорённости", "Check completed agreements"),
+            title=choose_text_by_lang("Встреча 7 дней назад", "Meeting Last Week", lang),
+            description=choose_text_by_lang("Проверить выполненные договорённости", "Check completed agreements", lang),
             date_of_note=django_timezone.now().astimezone(user_tz).date() - timedelta(days=7)
         )
         note_last_week.tags.add(tag_work, tag_important)
 
         note_last_month = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("Оплата за прошлый месяц", "Last Month Payment"),
-            description=choose_text_by_lang("Подтвердить квитанции у бухгалтерии", "Confirm receipts with accounting"),
+            title=choose_text_by_lang("Оплата за прошлый месяц", "Last Month Payment", lang),
+            description=choose_text_by_lang("Подтвердить квитанции у бухгалтерии", "Confirm receipts with accounting", lang),
             date_of_note=django_timezone.now().astimezone(user_tz).date() - timedelta(days=30)
         )
         note_last_month.tags.add(tag_work, tag_important)
 
         note_tomorrow = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("Забрать посылку", "Pick Up Parcel"),
-            description=choose_text_by_lang("Код получения: 3A5B, пункт выдачи до 20:00", "Pickup code: 3A5B, open until 8PM"),
+            title=choose_text_by_lang("Забрать посылку", "Pick Up Parcel", lang),
+            description=choose_text_by_lang("Код получения: 3A5B, пункт выдачи до 20:00", "Pickup code: 3A5B, open until 8PM", lang),
             date_of_note=django_timezone.now().astimezone(user_tz).date() + timedelta(days=1)
         )
         note_tomorrow.tags.add(tag_personal)
 
         note_next_week = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("День рождения друга", "Friend's Birthday"),
-            description=choose_text_by_lang("Купить книгу про космос и торт 'Млечный путь'", "Buy space book and 'Milky Way' cake"),
+            title=choose_text_by_lang("День рождения друга", "Friend's Birthday", lang),
+            description=choose_text_by_lang("Купить книгу про космос и торт 'Млечный путь'", "Buy space book and 'Milky Way' cake", lang),
             date_of_note=django_timezone.now().astimezone(user_tz).date() + timedelta(days=5)
         )
         note_next_week.tags.add(tag_personal, tag_fun)
 
         note_secret = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("Секретный рецепт", "Secret Recipe"),
-            description=choose_text_by_lang("Ингредиенты:\n- 300г тайны\n- 100г магии\n- щепотка безумия", "Ingredients:\n- 300g mystery\n- 100g magic\n- pinch of madness"),
+            title=choose_text_by_lang("Секретный рецепт", "Secret Recipe", lang),
+            description=choose_text_by_lang("Ингредиенты:\n- 300г тайны\n- 100г магии\n- щепотка безумия", "Ingredients:\n- 300g mystery\n- 100g magic\n- pinch of madness", lang),
             is_archived=True
         )
         note_secret.tags.add(tag_fun, tag_personal)
 
         note_today = Note.objects.create(
             user=user,
-            title=choose_text_by_lang("Текущие задачи", "Today Tasks"),
-            description=choose_text_by_lang("1. Ответить на письма\n2. Подготовить отчет\n3. Купить кофе", "1. Reply to emails\n2. Prepare report\n3. Buy coffee"),
+            title=choose_text_by_lang("Текущие задачи", "Today Tasks", lang),
+            description=choose_text_by_lang("1. Ответить на письма\n2. Подготовить отчет\n3. Купить кофе", "1. Reply to emails\n2. Prepare report\n3. Buy coffee", lang),
             date_of_note=django_timezone.now().astimezone(user_tz).date()
         )
         note_today.tags.add(tag_work, tag_important)
