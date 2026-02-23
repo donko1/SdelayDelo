@@ -95,8 +95,8 @@ Follow these steps to install and run SdelayDelo locally.
 1. Install Redis:
    ```bash
    sudo apt update && sudo apt install -y redis-server
-   sudo systemctl enable redis
-   sudo systemctl start redis 
+   sudo systemctl enable redis-server
+   sudo systemctl start redis-server
    ```
 2. Clone the repository:
    ```bash
@@ -115,17 +115,17 @@ Follow these steps to install and run SdelayDelo locally.
    ```bash
    pip install -r requirements.txt
    ```
-6. Apply migrations:
+6. Create local settings and **configure it**(optionally. For full correctly working use PostgreSQL):
+   ```bash
+   cp SdelayDelo/local_settings.py.example SdelayDelo/local_settings.py
+   ```
+7. Apply migrations:
    ```bash
    python3 manage.py migrate
    ```
-7. Create a superuser (admin account):
+8. Create a superuser (admin account):
    ```bash
    python3 manage.py createsuperuser
-   ```
-8. Create local settings and **configure it**(optionally. For full correctly working use PostgreSQL):
-   ```bash
-   cp SdelayDelo/local_settings.py.example SdelayDelo/local_settings.py
    ```
 9. Start Redis:
    ```bash
