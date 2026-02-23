@@ -1,6 +1,19 @@
 from .settings import BASE_DIR
 from os import path
 from celery.schedules import crontab
+import string
+from random import choice
+
+def generate_key():
+    symbols = string.ascii_letters + string.digits + "!@#$%^&*(_)-+=/.';\""
+    out = ""
+    for _ in range(50):
+        out += choice(symbols)
+    return out
+
+if not path.exists(path.abspath("./SdelayDelo/secret_key.txt")):
+    with open(path.abspath("./SdelayDelo/secret_key.txt"), "w") as f:
+        f.write(generate_key())
 
 with open(path.abspath("./SdelayDelo/secret_key.txt"), "r", encoding="utf-8") as f:
     SECRET_KEY = f.read().strip()
